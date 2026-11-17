@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Bell,
   LogOut,
@@ -83,7 +83,7 @@ export default function AdminPage() {
     return () => clearInterval(t);
   }, [token, fetchLeads]);
 
-  const login = async (e: React.FormEvent) => {
+  const login = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);

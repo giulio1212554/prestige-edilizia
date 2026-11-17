@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
 import { company } from "@/data/company";
 import { Phone, Mail, MapPin, Send, CheckCircle } from "lucide-react";
@@ -17,7 +17,7 @@ export default function Contact() {
     "idle"
   );
 
-  const handleSubmit = async (ev: React.FormEvent) => {
+  const handleSubmit = async (ev: FormEvent) => {
     ev.preventDefault();
     if (!form.name || !form.email || !form.phone || !form.message || !form.privacy)
       return;
