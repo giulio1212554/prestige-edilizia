@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, X, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { company } from "@/data/company";
@@ -19,12 +20,31 @@ const navLinks = [
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const router = useRouter();
+  const clickCount = useRef(0);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    clickCount.current += 1;
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+
+    if (clickCount.current >= 3) {
+      e.preventDefault();
+      clickCount.current = 0;
+      router.push("/admin");
+      return;
+    }
+
+    clickTimer.current = setTimeout(() => {
+      clickCount.current = 0;
+    }, 600);
+  };
 
   return (
     <header
@@ -37,7 +57,11 @@ export default function Header() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 md:h-20 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link
+            href="/"
+            onClick={handleLogoClick}
+            className="flex items-center gap-2 select-none"
+          >
             <span
               className={cn(
                 "font-serif text-xl md:text-2xl font-semibold tracking-tight transition-colors",
@@ -66,13 +90,6 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-4">
             <a
               href={`tel:${company.phoneRaw}`}
-              onClick={() => {
-                if (typeof window !== "undefined" && (window as any).gtag) {
-                  (window as any).gtag("event", "click_telefono", {
-                    event_category: "contatto",
-                  });
-                }
-              }}
               className={cn(
                 "flex items-center gap-2 text-sm font-medium transition-colors",
                 scrolled ? "text-charcoal-700 hover:text-bronze" : "text-white/90 hover:text-white"
