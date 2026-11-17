@@ -22,7 +22,7 @@ export const blogPosts: BlogPost[] = [
       "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1200&q=80",
     content: [
       "Il costo di una ristrutturazione a Milano varia in modo sensibile in base allo stato dell'immobile, al livello di finiture e alla complessità degli impianti. Nel 2025 i prezzi medi di mercato per una ristrutturazione completa (demolizioni, impianti, massetti, pavimenti, bagni e finiture) si attestano tra gli 800 e i 2.500 euro al metro quadro.",
-      "Per un appartamento standard con finiture di buona qualità si parla spesso di 1.100–1.600 €/mq. Se si punta a materiali di pregio, falegnameria su misura, domotica e bagni con soluzioni spa, il range sale facilmente sopra i 1.800–2.200 €/mq.",
+      "Per un appartamento standard con finiture di buona qualità si parla spesso di 1.100–1.600 euro al mq. Se si punta a materiali di pregio, falegnameria su misura, domotica e bagni con soluzioni spa, il range sale facilmente sopra i 1.800–2.200 euro al mq.",
       "Oltre al costo al mq vanno considerati: pratiche edilizie e oneri, eventuale direzione lavori, imprevisti (in genere conviene prevedere un 10–15% di margine) e l'IVA. I bonus fiscali, quando applicabili, possono ridurre in modo importante l'esborso netto.",
       "Un preventivo affidabile nasce solo dopo un sopralluogo: stato delle strutture, impianti esistenti, vincoli condominiali e scelte di progetto cambiano i numeri. Per questo in Prestige Edilizia proponiamo sempre un sopralluogo gratuito e un quadro costi trasparente prima di qualsiasi impegno.",
       "Se stai valutando una ristrutturazione a Milano o provincia, usa il nostro calcolatore indicativo e poi richiedi un contatto: ti aiutiamo a capire costi, tempi e possibili detrazioni senza impegno.",
@@ -60,7 +60,7 @@ export const blogPosts: BlogPost[] = [
       "I tempi di una ristrutturazione non dipendono solo dai metri quadri. Contano lo stato di partenza, le pratiche edilizie, la disponibilità di materiali e il livello di personalizzazione delle finiture. Per un appartamento medio a Milano, una ristrutturazione completa dura spesso tra i 4 e i 9 mesi di cantiere, a cui vanno aggiunte le fasi di progetto e autorizzazioni.",
       "In sintesi tipica: sopralluogo e concept (1–3 settimane), progetto e pratiche (da poche settimane a qualche mese in base ai vincoli), cantiere (demolizioni, impianti, massetti, pavimenti, finiture), collaudo e consegna. I bagni e la cucina sono spesso i punti più lunghi e delicati.",
       "Ritardi frequenti nascono da: decisioni di progetto in corso d'opera, forniture personalizzate con lead time lunghi, imprevisti strutturali o impiantistici, vincoli condominiali o di cantiere in centro città. Un programma lavori chiaro e aggiornamenti settimanali riducono le sorprese.",
-      "In Prestige Edilizia fissiamo fasi e scadenze già in preventivo, con un responsabile di cantiere dedicato. L'obiettivo non è solo "finire in tempo", ma consegnare uno spazio all'altezza delle aspettative senza stress inutili per il cliente.",
+      "In Prestige Edilizia fissiamo fasi e scadenze già in preventivo, con un responsabile di cantiere dedicato. L'obiettivo non è solo finire in tempo, ma consegnare uno spazio all'altezza delle aspettative senza stress inutili per il cliente.",
       "Vuoi una stima dei tempi per il tuo immobile? Richiedi un sopralluogo: dopo aver visto lo stato di fatto e le tue priorità, ti proponiamo un cronoprogramma realistico.",
     ],
   },
