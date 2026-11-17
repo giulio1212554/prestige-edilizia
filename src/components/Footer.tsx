@@ -10,9 +10,15 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="space-y-4">
-            <h3 className="font-serif text-2xl text-white">{company.name}</h3>
-            <p className="text-sm leading-relaxed text-warmgray-300">{company.description}</p>
-            <p className="text-xs text-warmgray-400">{company.legalName} · P.IVA {company.vat}</p>
+            <h3 className="font-serif text-2xl text-white">
+              {company.name}
+            </h3>
+            <p className="text-sm leading-relaxed text-warmgray-300">
+              {company.description}
+            </p>
+            <p className="text-xs text-warmgray-400">
+              {company.legalName} · P.IVA {company.vat}
+            </p>
           </div>
           <div>
             <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">Servizi</h4>
