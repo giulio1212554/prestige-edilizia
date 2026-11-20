@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import WhatsAppButton from "@/components/WhatsAppButton";
-import CookieBanner from "@/components/CookieBanner";
+import SiteShell from "@/components/SiteShell";
 import { company } from "@/data/company";
 
 const inter = Inter({
@@ -105,11 +102,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <Header />
-        <main>{children}</main>
-        <Footer />
-        <WhatsAppButton />
-        <CookieBanner />
+        <SiteShell>{children}</SiteShell>
       </body>
     </html>
   );
