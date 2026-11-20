@@ -1,371 +1,348 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import {
-  Bell,
-  LogOut,
-  Mail,
-  Phone,
-  RefreshCw,
-  CheckCircle2,
-  Clock,
-  Inbox,
-} from "lucide-react";
-
-type LeadStatus = "nuova" | "in_lavorazione" | "chiusa";
+import Link from "next/link";
 
 type Lead = {
   id: string;
+  accountCode: string;
   name: string;
   email: string;
   phone: string;
   message: string;
-  type: "sopralluogo" | "preventivo" | "altro";
-  status: LeadStatus;
+  type: string;
+  status: string;
   createdAt: string;
   read: boolean;
+  details?: {
+    city?: string;
+    workType?: string;
+    sqm?: string;
+    budget?: string;
+    deadline?: string;
+    urgent?: boolean;
+  };
 };
 
-const STATUS_LABEL: Record<LeadStatus, string> = {
-  nuova: "Nuova",
-  in_lavorazione: "In lavorazione",
-  chiusa: "Chiusa",
+type Doc = {
+  id: string;
+  leadId: string;
+  type: string;
+  title: string;
+  amount: number;
+  status: string;
+  items: { label: string; amount: number }[];
 };
 
-const TYPE_LABEL = {
-  sopralluogo: "Sopralluogo",
-  preventivo: "Preventivo",
-  altro: "Altro",
-};
+const PASSWORD = "admin2025";
 
 export default function AdminPage() {
-  const [password, setPassword] = useState("");
-  const [token, setToken] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(false);
+  const [pwd, setPwd] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [docs, setDocs] = useState<Doc[]>([]);
   const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
+  const [tab, setTab] = useState<"leads" | "docs">("leads");
+  const [quoteForm, setQuoteForm] = useState({
+    title: "Preventivo lavori",
+    notes: "Validità 30 giorni. IVA esclusa.",
+    lines: "Demolizioni;3000\nImpianti;8000\nFiniture;15000\nManodopera;5000",
+    send: true,
+  });
+  const [msg, setMsg] = useState("");
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem("admin_token");
-    if (saved) setToken(saved);
-  }, []);
+  const headers = () => ({
+    Authorization: `Bearer ${PASSWORD}`,
+    "Content-Type": "application/json",
+  });
 
-  const fetchLeads = useCallback(async (auth: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/leads", {
-        headers: { Authorization: `Bearer ${auth}` },
-      });
-      if (res.status === 401) {
-        sessionStorage.removeItem("admin_token");
-        setToken(null);
-        setError("Sessione scaduta. Accedi di nuovo.");
-        return;
-      }
-      if (!res.ok) throw new Error("Errore caricamento");
-      const data = await res.json();
-      setLeads(data.leads || []);
-      setUnread(data.unread || 0);
-    } catch {
-      setError("Impossibile caricare le richieste.");
-    } finally {
-      setLoading(false);
+  const refresh = useCallback(async () => {
+    const [lr, dr] = await Promise.all([
+      fetch("/api/leads", { headers: headers() }),
+      fetch("/api/docs", { headers: headers() }),
+    ]);
+    if (!lr.ok) {
+      setAuthed(false);
+      return;
     }
+    const ld = await lr.json();
+    const dd = await dr.json();
+    setLeads(ld.leads || []);
+    setUnread(ld.unread || 0);
+    setDocs(dd.docs || []);
+    setAuthed(true);
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    fetchLeads(token);
-    const t = setInterval(() => fetchLeads(token), 20000);
-    return () => clearInterval(t);
-  }, [token, fetchLeads]);
+    if (typeof window !== "undefined" && sessionStorage.getItem("pe-admin") === "1") {
+      refresh();
+    }
+  }, [refresh]);
 
-  const login = async (e: FormEvent) => {
+  const login = (e: FormEvent) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/leads", {
-        headers: { Authorization: `Bearer ${password}` },
+    if (pwd === PASSWORD) {
+      sessionStorage.setItem("pe-admin", "1");
+      refresh();
+    } else setMsg("Password errata");
+  };
+
+  const markRead = async (lead: Lead) => {
+    await fetch(`/api/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ read: true }),
+    });
+    setSelected(lead);
+    refresh();
+  };
+
+  const createDoc = async () => {
+    if (!selected) return;
+    const items = quoteForm.lines
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [label, amount] = l.split(";");
+        return { label: (label || "Voce").trim(), amount: Number(amount) || 0 };
       });
-      if (!res.ok) {
-        setError("Password non corretta");
-        return;
-      }
-      sessionStorage.setItem("admin_token", password);
-      setToken(password);
-    } catch {
-      setError("Errore di connessione");
-    } finally {
-      setLoading(false);
+    const amount = items.reduce((s, i) => s + i.amount, 0);
+    const res = await fetch("/api/docs", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        leadId: selected.id,
+        type: "preventivo",
+        title: quoteForm.title,
+        notes: quoteForm.notes,
+        items,
+        amount,
+        send: quoteForm.send,
+      }),
+    });
+    if (res.ok) {
+      setMsg("Preventivo creato" + (quoteForm.send ? " e inviato al cliente" : ""));
+      refresh();
+    } else setMsg("Errore creazione");
+  };
+
+  const createInvoice = async (leadId: string) => {
+    const res = await fetch("/api/docs", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        leadId,
+        type: "fattura",
+        title: "Fattura acconto lavori",
+        notes: "Fattura dimostrativa — firma digitale online.",
+        items: [{ label: "Acconto 30% lavori", amount: 8500 }],
+        amount: 8500,
+        send: true,
+      }),
+    });
+    if (res.ok) {
+      setMsg("Fattura inviata");
+      refresh();
     }
   };
 
-  const logout = () => {
-    sessionStorage.removeItem("admin_token");
-    setToken(null);
-    setLeads([]);
-    setSelected(null);
-  };
-
-  const patchLead = async (
-    id: string,
-    patch: { status?: LeadStatus; read?: boolean }
-  ) => {
-    if (!token) return;
-    const res = await fetch(`/api/leads/${id}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(patch),
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    setLeads((prev) => prev.map((l) => (l.id === id ? data.lead : l)));
-    if (selected?.id === id) setSelected(data.lead);
-    if (patch.read === true) setUnread((u) => Math.max(0, u - 1));
-  };
-
-  const openLead = (lead: Lead) => {
-    setSelected(lead);
-    if (!lead.read) patchLead(lead.id, { read: true });
-  };
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString("it-IT", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  if (!token) {
+  if (!authed) {
     return (
       <div className="min-h-screen bg-charcoal flex items-center justify-center px-4">
-        <form
-          onSubmit={login}
-          className="w-full max-w-sm rounded-sm bg-white p-8 shadow-xl space-y-5"
-        >
-          <div>
-            <p className="text-xs uppercase tracking-wider text-bronze font-medium">
-              Area riservata
-            </p>
-            <h1 className="font-serif text-2xl text-charcoal font-semibold mt-1">
-              Admin Prestige
-            </h1>
-            <p className="text-sm text-warmgray-500 mt-1">
-              Accedi per gestire richieste e notifiche.
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-sm border border-warmgray-200 px-4 py-3 focus:border-bronze focus:outline-none"
-              placeholder="••••••••"
-              autoFocus
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !password}
-            className="w-full rounded-sm bg-bronze py-3 text-sm font-semibold text-white hover:bg-bronze-600 disabled:opacity-60"
-          >
-            {loading ? "Accesso..." : "Accedi"}
+        <form onSubmit={login} className="w-full max-w-sm rounded-xl bg-white p-8 space-y-4">
+          <h1 className="font-serif text-2xl font-semibold text-charcoal">Admin</h1>
+          <p className="text-sm text-warmgray-500">Password: admin2025</p>
+          <input
+            type="password"
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+            className="w-full rounded-lg border border-warmgray-200 px-4 py-3"
+            placeholder="Password"
+          />
+          {msg && <p className="text-sm text-red-600">{msg}</p>}
+          <button type="submit" className="w-full rounded-lg bg-charcoal py-3 text-white font-semibold">
+            Entra
           </button>
-          <p className="text-xs text-warmgray-400 text-center">
-            Password demo: <code className="text-charcoal">admin2025</code>
-          </p>
+          <Link href="/" className="block text-center text-sm text-bronze">
+            Torna al sito
+          </Link>
         </form>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-warmgray-50">
-      <header className="sticky top-0 z-20 border-b border-warmgray-100 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="font-serif text-xl font-semibold text-charcoal">
-              Dashboard richieste
-            </h1>
-            {unread > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-bronze/10 px-2.5 py-1 text-xs font-semibold text-bronze">
-                <Bell className="h-3.5 w-3.5" />
-                {unread} nuov{unread === 1 ? "a" : "e"}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => token && fetchLeads(token)}
-              className="inline-flex items-center gap-1.5 rounded-sm border border-warmgray-200 px-3 py-2 text-sm text-charcoal hover:bg-warmgray-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Aggiorna
-            </button>
-            <button
-              type="button"
-              onClick={logout}
-              className="inline-flex items-center gap-1.5 rounded-sm px-3 py-2 text-sm text-warmgray-600 hover:text-charcoal"
-            >
-              <LogOut className="h-4 w-4" />
-              Esci
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-6xl px-4 py-8 grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center gap-2 text-sm text-warmgray-500 mb-2">
-            <Inbox className="h-4 w-4" />
-            {leads.length} richiest{leads.length === 1 ? "a" : "e"}
-          </div>
-          {leads.length === 0 && !loading && (
-            <p className="text-sm text-warmgray-500 py-8 text-center">
-              Nessuna richiesta al momento.
+    <div className="min-h-screen bg-warmgray-50 pt-24 pb-16">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="font-serif text-3xl font-semibold text-charcoal">Dashboard</h1>
+            <p className="text-sm text-warmgray-500">
+              {unread > 0 ? `${unread} notifiche non lette` : "Nessuna nuova notifica"}
             </p>
-          )}
-          {leads.map((lead) => (
+          </div>
+          <div className="flex gap-2">
             <button
-              key={lead.id}
               type="button"
-              onClick={() => openLead(lead)}
-              className={`w-full text-left rounded-sm border p-4 transition ${
-                selected?.id === lead.id
-                  ? "border-bronze bg-bronze/5"
-                  : "border-warmgray-100 bg-white hover:border-warmgray-200"
-              } ${!lead.read ? "ring-1 ring-bronze/30" : ""}`}
+              onClick={() => setTab("leads")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                tab === "leads" ? "bg-charcoal text-white" : "bg-white border"
+              }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-charcoal truncate">
-                    {!lead.read && (
-                      <span className="inline-block h-2 w-2 rounded-full bg-bronze mr-2 align-middle" />
-                    )}
-                    {lead.name}
-                  </p>
-                  <p className="text-xs text-warmgray-500 mt-0.5">
-                    {TYPE_LABEL[lead.type]} · {formatDate(lead.createdAt)}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full ${
-                    lead.status === "nuova"
-                      ? "bg-bronze/15 text-bronze"
-                      : lead.status === "in_lavorazione"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-warmgray-100 text-warmgray-600"
-                  }`}
-                >
-                  {STATUS_LABEL[lead.status]}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-warmgray-600 line-clamp-2">
-                {lead.message}
-              </p>
+              Richieste ({leads.length})
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setTab("docs")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                tab === "docs" ? "bg-charcoal text-white" : "bg-white border"
+              }`}
+            >
+              Documenti ({docs.length})
+            </button>
+            <Link href="/" className="rounded-lg border bg-white px-4 py-2 text-sm">
+              Sito
+            </Link>
+          </div>
         </div>
 
-        <div className="lg:col-span-3">
-          {selected ? (
-            <div className="rounded-sm border border-warmgray-100 bg-white p-6 md:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-warmgray-100 pb-5">
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-bronze font-medium">
-                    {TYPE_LABEL[selected.type]}
-                  </p>
-                  <h2 className="font-serif text-2xl font-semibold text-charcoal mt-1">
-                    {selected.name}
-                  </h2>
-                  <p className="text-sm text-warmgray-500 mt-1 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" />
-                    {formatDate(selected.createdAt)}
-                  </p>
-                </div>
-                <select
-                  value={selected.status}
-                  onChange={(e) =>
-                    patchLead(selected.id, {
-                      status: e.target.value as LeadStatus,
-                    })
-                  }
-                  className="rounded-sm border border-warmgray-200 px-3 py-2 text-sm focus:border-bronze focus:outline-none"
-                >
-                  <option value="nuova">Nuova</option>
-                  <option value="in_lavorazione">In lavorazione</option>
-                  <option value="chiusa">Chiusa</option>
-                </select>
-              </div>
+        {msg && (
+          <p className="mb-4 rounded-lg bg-bronze/10 text-bronze text-sm px-4 py-2">{msg}</p>
+        )}
 
-              <div className="mt-6 space-y-4">
-                <a
-                  href={`mailto:${selected.email}`}
-                  className="flex items-center gap-3 text-charcoal hover:text-bronze"
-                >
-                  <Mail className="h-4 w-4 text-warmgray-400" />
-                  {selected.email}
-                </a>
-                <a
-                  href={`tel:${selected.phone.replace(/\s/g, "")}`}
-                  className="flex items-center gap-3 text-charcoal hover:text-bronze"
-                >
-                  <Phone className="h-4 w-4 text-warmgray-400" />
-                  {selected.phone}
-                </a>
-              </div>
-
-              <div className="mt-6">
-                <p className="text-xs uppercase tracking-wider text-warmgray-400 font-medium mb-2">
-                  Messaggio
-                </p>
-                <p className="text-charcoal leading-relaxed whitespace-pre-wrap">
-                  {selected.message}
-                </p>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a
-                  href={`https://wa.me/${selected.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Buongiorno ${selected.name}, la contatto da Prestige Edilizia in merito alla sua richiesta.`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-sm bg-bronze px-4 py-2.5 text-sm font-semibold text-white hover:bg-bronze-600"
-                >
-                  Rispondi su WhatsApp
-                </a>
+        {tab === "leads" && (
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              {leads.map((l) => (
                 <button
+                  key={l.id}
                   type="button"
-                  onClick={() => patchLead(selected.id, { status: "chiusa" })}
-                  className="inline-flex items-center gap-2 rounded-sm border border-warmgray-200 px-4 py-2.5 text-sm font-medium text-charcoal hover:bg-warmgray-50"
+                  onClick={() => markRead(l)}
+                  className={`w-full text-left rounded-xl border bg-white p-4 transition hover:border-bronze ${
+                    !l.read ? "border-bronze/40 shadow-sm" : "border-warmgray-200"
+                  } ${selected?.id === l.id ? "ring-2 ring-bronze" : ""}`}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Segna come chiusa
+                  <div className="flex justify-between gap-2">
+                    <span className="font-semibold text-charcoal">{l.name}</span>
+                    <span className="text-xs font-mono text-warmgray-400">{l.accountCode}</span>
+                  </div>
+                  <p className="text-sm text-warmgray-600 mt-1 line-clamp-2">{l.message}</p>
+                  <p className="text-xs text-warmgray-400 mt-2">
+                    {l.status} · {new Date(l.createdAt).toLocaleString("it-IT")}
+                    {l.details?.urgent ? " · URGENTE" : ""}
+                  </p>
                 </button>
-              </div>
+              ))}
             </div>
-          ) : (
-            <div className="rounded-sm border border-dashed border-warmgray-200 bg-white/50 p-12 text-center text-warmgray-500">
-              <Bell className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p>Seleziona una richiesta per vedere i dettagli</p>
-              <p className="text-sm mt-1">
-                Le nuove richieste dal sito appaiono qui in automatico
-              </p>
+
+            <div className="rounded-xl border border-warmgray-200 bg-white p-5 sticky top-24 h-fit">
+              {!selected ? (
+                <p className="text-sm text-warmgray-500">Seleziona una richiesta</p>
+              ) : (
+                <>
+                  <h2 className="font-serif text-xl font-semibold">{selected.name}</h2>
+                  <p className="text-sm text-warmgray-600">
+                    {selected.phone} · {selected.email}
+                  </p>
+                  <p className="mt-1 text-xs font-mono text-bronze">{selected.accountCode}</p>
+                  {selected.details && (
+                    <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      {Object.entries(selected.details).map(([k, v]) => (
+                        <div key={k}>
+                          <dt className="text-xs text-warmgray-400">{k}</dt>
+                          <dd className="font-medium">{String(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  <p className="mt-4 text-sm text-warmgray-700">{selected.message}</p>
+
+                  <div className="mt-6 border-t pt-4 space-y-3">
+                    <h3 className="font-semibold text-sm">Crea preventivo</h3>
+                    <input
+                      value={quoteForm.title}
+                      onChange={(e) => setQuoteForm({ ...quoteForm, title: e.target.value })}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                      placeholder="Titolo"
+                    />
+                    <textarea
+                      value={quoteForm.lines}
+                      onChange={(e) => setQuoteForm({ ...quoteForm, lines: e.target.value })}
+                      rows={5}
+                      className="w-full rounded-lg border px-3 py-2 text-sm font-mono"
+                      placeholder="Voce;importo (una per riga)"
+                    />
+                    <textarea
+                      value={quoteForm.notes}
+                      onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={quoteForm.send}
+                        onChange={(e) => setQuoteForm({ ...quoteForm, send: e.target.checked })}
+                      />
+                      Invia subito in area cliente
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={createDoc}
+                        className="rounded-lg bg-bronze px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Genera preventivo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => createInvoice(selected.id)}
+                        className="rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold"
+                      >
+                        Invia fattura demo
+                      </button>
+                      <Link
+                        href={`/area-cliente?code=${selected.accountCode}`}
+                        className="rounded-lg border px-4 py-2 text-sm"
+                      >
+                        Vedi come cliente
+                      </Link>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {tab === "docs" && (
+          <div className="rounded-xl border bg-white overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-warmgray-50 text-left">
+                <tr>
+                  <th className="p-3">Tipo</th>
+                  <th className="p-3">Titolo</th>
+                  <th className="p-3">Importo</th>
+                  <th className="p-3">Stato</th>
+                  <th className="p-3">Lead</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docs.map((d) => (
+                  <tr key={d.id} className="border-t">
+                    <td className="p-3">{d.type}</td>
+                    <td className="p-3">{d.title}</td>
+                    <td className="p-3">€ {d.amount.toLocaleString("it-IT")}</td>
+                    <td className="p-3">{d.status}</td>
+                    <td className="p-3 font-mono text-xs">{d.leadId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
