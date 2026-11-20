@@ -18,10 +18,10 @@ function docLabel(type: Document["type"]) {
 export async function buildDocumentPdf(
   doc: Document,
   lead: Lead,
-  opts?: { signedBy?: string; signedAt?: string }
+  opts?: { signedBy?: string; signedAt?: string; signatureImage?: string }
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]); // A4
+  const page = pdf.addPage([595.28, 841.89]);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
@@ -46,13 +46,12 @@ export async function buildDocumentPdf(
     });
   };
 
-  // Header
   draw(company.legalName, margin, y, 16, true, rgb(0.55, 0.4, 0.22));
   y -= 16;
   draw(company.address.full, margin, y, 9, false, rgb(0.35, 0.35, 0.35));
   y -= 12;
   draw(
-    `P.IVA ${company.vat}  ·  ${company.email}  ·  ${company.phone}`,
+    `P.IVA ${company.vat}  \u00b7  ${company.email}  \u00b7  ${company.phone}`,
     margin,
     y,
     9,
@@ -87,7 +86,6 @@ export async function buildDocumentPdf(
   draw(`Stato: ${doc.status.toUpperCase()}`, margin, y, 9, true);
   y -= 28;
 
-  // Cliente
   draw("CLIENTE", margin, y, 11, true, rgb(0.55, 0.4, 0.22));
   y -= 16;
   draw(lead.name, margin, y, 11, true);
@@ -107,7 +105,6 @@ export async function buildDocumentPdf(
   }
   y -= 28;
 
-  // Table header
   page.drawRectangle({
     x: margin,
     y: y - 6,
@@ -120,7 +117,7 @@ export async function buildDocumentPdf(
   y -= 28;
 
   for (const item of doc.items) {
-    if (y < 160) break;
+    if (y < 180) break;
     draw(item.label.slice(0, 70), margin + 4, y, 10);
     draw(euro(item.amount), margin + width - 100, y, 10);
     y -= 8;
@@ -156,36 +153,56 @@ export async function buildDocumentPdf(
     y -= 10;
   }
 
-  // Signature box
   page.drawRectangle({
     x: margin,
-    y: 48,
+    y: 40,
     width,
-    height: 90,
+    height: 110,
     borderColor: rgb(0.7, 0.7, 0.7),
     borderWidth: 1,
   });
 
-  draw("FIRMA DIGITALE CLIENTE", margin + 12, 120, 10, true);
+  draw("FIRMA DIGITALE CLIENTE", margin + 12, 132, 10, true);
   const signedBy = opts?.signedBy || doc.clientSignature;
   const signedAt = opts?.signedAt || doc.signedAt;
+  const sigImg = opts?.signatureImage || doc.signatureImage;
 
   if (signedBy) {
-    draw(`Firmato da: ${signedBy}`, margin + 12, 100, 11, true, rgb(0.1, 0.45, 0.2));
+    draw(`Firmato da: ${signedBy}`, margin + 12, 116, 11, true, rgb(0.1, 0.45, 0.2));
     if (signedAt) {
       draw(
         `Data/ora: ${new Date(signedAt).toLocaleString("it-IT")}`,
         margin + 12,
-        84,
+        100,
         9,
         false,
         rgb(0.3, 0.3, 0.3)
       );
     }
+    if (sigImg && sigImg.startsWith("data:image")) {
+      try {
+        const base64 = sigImg.split(",")[1];
+        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        const png = await pdf.embedPng(bytes);
+        const maxW = 180;
+        const maxH = 48;
+        const scale = Math.min(maxW / png.width, maxH / png.height);
+        const iw = png.width * scale;
+        const ih = png.height * scale;
+        page.drawImage(png, {
+          x: margin + width - iw - 16,
+          y: 48,
+          width: iw,
+          height: ih,
+        });
+      } catch {
+        /* ignore embed errors */
+      }
+    }
     draw(
       "Documento accettato e firmato online tramite Area Cliente Prestige Edilizia.",
       margin + 12,
-      66,
+      52,
       8,
       false,
       rgb(0.4, 0.4, 0.4)
@@ -194,15 +211,15 @@ export async function buildDocumentPdf(
     draw(
       "In attesa di firma del cliente sull'Area Cliente del sito.",
       margin + 12,
-      96,
+      100,
       10,
       false,
       rgb(0.45, 0.45, 0.45)
     );
     draw(
-      "Spazio riservato alla firma digitale online.",
+      "Spazio riservato alla firma grafica online (touch / mouse).",
       margin + 12,
-      78,
+      82,
       9,
       false,
       rgb(0.55, 0.55, 0.55)
@@ -213,7 +230,6 @@ export async function buildDocumentPdf(
 }
 
 export function downloadPdfBytes(bytes: Uint8Array, filename: string) {
-  // Copy into a plain ArrayBuffer-backed Uint8Array for Blob compatibility
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   const blob = new Blob([copy], { type: "application/pdf" });
@@ -229,6 +245,7 @@ export async function downloadDocumentPdf(doc: Document, lead: Lead) {
   const bytes = await buildDocumentPdf(doc, lead, {
     signedBy: doc.clientSignature,
     signedAt: doc.signedAt,
+    signatureImage: doc.signatureImage,
   });
   const safe = doc.title.replace(/[^a-zA-Z0-9-_ ]/g, "").slice(0, 40);
   downloadPdfBytes(bytes, `${doc.type}-${lead.accountCode}-${safe}.pdf`);
