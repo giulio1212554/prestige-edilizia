@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { company } from "@/data/company";
 import { Phone, Mail, MapPin, Send, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { addLead } from "@/lib/client-db";
 
 const workTypes = [
   "Appartamento completo",
@@ -43,7 +44,7 @@ export default function Contact() {
     sqm: "",
     budget: "",
     deadline: "",
-    urgent: false as boolean | null,
+    urgent: null as boolean | null,
     description: "",
     privacy: false,
     marketing: false,
@@ -56,7 +57,7 @@ export default function Contact() {
   const set = (k: string, v: string | boolean | null) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const handleSubmit = async (ev: FormEvent) => {
+  const handleSubmit = (ev: FormEvent) => {
     ev.preventDefault();
     if (
       !form.name ||
@@ -68,33 +69,30 @@ export default function Contact() {
       !form.privacy
     )
       return;
+
     setStatus("loading");
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email || `${form.phone.replace(/\s/g, "")}@cliente.local`,
-          phone: form.phone,
-          message:
-            form.description ||
-            `Richiesta preventivo: ${form.workType} · ${form.sqm} mq · ${form.city}`,
-          type: "preventivo",
-          details: {
-            city: form.city,
-            workType: form.workType,
-            sqm: form.sqm,
-            budget: form.budget,
-            deadline: form.deadline,
-            urgent: form.urgent,
-            description: form.description,
-          },
-        }),
+      const lead = addLead({
+        name: form.name.trim(),
+        email:
+          form.email.trim() ||
+          `${form.phone.replace(/\D/g, "")}@cliente.local`,
+        phone: form.phone.trim(),
+        message:
+          form.description.trim() ||
+          `Richiesta preventivo: ${form.workType} · ${form.sqm} · ${form.city}`,
+        type: "preventivo",
+        details: {
+          city: form.city.trim(),
+          workType: form.workType,
+          sqm: form.sqm,
+          budget: form.budget,
+          deadline: form.deadline,
+          urgent: form.urgent,
+          description: form.description.trim(),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error("fail");
-      setAccountCode(data.accountCode || "");
+      setAccountCode(lead.accountCode);
       setStatus("success");
     } catch {
       setStatus("error");
@@ -120,14 +118,20 @@ export default function Contact() {
             Richiedi un preventivo veloce
           </h2>
           <p className="mt-3 text-warmgray-600">
-            Compila i campi: ti ricontattiamo su WhatsApp. Se hai fretta, scrivi
-            direttamente.
+            Compila i campi: creiamo subito il tuo account cliente e il preventivo
+            arriva in area admin.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-4 text-sm text-warmgray-600">
-            <a href={`tel:${company.phoneRaw}`} className="inline-flex items-center gap-1.5 hover:text-bronze">
+            <a
+              href={`tel:${company.phoneRaw}`}
+              className="inline-flex items-center gap-1.5 hover:text-bronze"
+            >
               <Phone className="h-4 w-4" /> {company.phone}
             </a>
-            <a href={`mailto:${company.email}`} className="inline-flex items-center gap-1.5 hover:text-bronze">
+            <a
+              href={`mailto:${company.email}`}
+              className="inline-flex items-center gap-1.5 hover:text-bronze"
+            >
               <Mail className="h-4 w-4" /> {company.email}
             </a>
             <span className="inline-flex items-center gap-1.5">
@@ -143,8 +147,8 @@ export default function Contact() {
               Richiesta inviata
             </h3>
             <p className="mt-2 text-warmgray-600">
-              Abbiamo creato il tuo account cliente. Quando il preventivo sarà
-              pronto lo troverai sul sito.
+              Account cliente creato. Salva il codice e aprilo in area cliente.
+              In admin vedi subito la richiesta.
             </p>
             {accountCode && (
               <div className="mt-6 rounded-xl bg-charcoal text-white p-5">
@@ -339,10 +343,9 @@ export default function Contact() {
             <div className="space-y-3 text-sm text-warmgray-600">
               <label className="flex items-start gap-2 cursor-pointer">
                 <input
-                  type="radio"
-                  name="privacy"
+                  type="checkbox"
                   checked={form.privacy}
-                  onChange={() => set("privacy", true)}
+                  onChange={(e) => set("privacy", e.target.checked)}
                   className="mt-1"
                 />
                 <span>
@@ -350,8 +353,7 @@ export default function Contact() {
                   <Link href="/privacy" className="text-bronze underline">
                     Informativa Privacy
                   </Link>{" "}
-                  e acconsento al trattamento dei miei dati per ricevere il
-                  preventivo *
+                  e acconsento al trattamento dei dati *
                 </span>
               </label>
               <label className="flex items-start gap-2 cursor-pointer">
@@ -362,15 +364,14 @@ export default function Contact() {
                   className="mt-1"
                 />
                 <span>
-                  Acconsento a ricevere comunicazioni promozionali e offerte
-                  (facoltativo)
+                  Acconsento a ricevere comunicazioni promozionali (facoltativo)
                 </span>
               </label>
             </div>
 
             {status === "error" && (
               <p className="text-sm text-red-600">
-                Invio non riuscito. Riprova o chiamaci.
+                Invio non riuscito. Riprova.
               </p>
             )}
 
