@@ -157,7 +157,6 @@ export async function buildDocumentPdf(
   }
 
   // Signature box
-  const boxY = Math.min(y, 140);
   page.drawRectangle({
     x: margin,
     y: 48,
@@ -210,14 +209,14 @@ export async function buildDocumentPdf(
     );
   }
 
-  // avoid unused
-  void boxY;
-
   return pdf.save();
 }
 
 export function downloadPdfBytes(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  // Copy into a plain ArrayBuffer-backed Uint8Array for Blob compatibility
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const blob = new Blob([copy], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
