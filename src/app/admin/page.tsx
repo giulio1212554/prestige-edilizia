@@ -8,9 +8,11 @@ import {
   updateLead,
   addDoc,
   unreadCount,
+  getLead,
   type Lead,
   type Document,
 } from "@/lib/client-db";
+import { downloadDocumentPdf } from "@/lib/pdf";
 
 const PASSWORD = "admin2025";
 
@@ -29,6 +31,7 @@ export default function AdminPage() {
     send: true,
   });
   const [msg, setMsg] = useState("");
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     const l = listLeads();
@@ -55,7 +58,7 @@ export default function AdminPage() {
     refresh();
     const onStorage = () => refresh();
     window.addEventListener("storage", onStorage);
-    const t = setInterval(refresh, 2000);
+    const t = setInterval(refresh, 2500);
     return () => {
       window.removeEventListener("storage", onStorage);
       clearInterval(t);
@@ -78,7 +81,7 @@ export default function AdminPage() {
     refresh();
   };
 
-  const createDoc = () => {
+  const createDoc = async (type: "preventivo" | "fattura" = "preventivo") => {
     if (!selected) return;
     const items = quoteForm.lines
       .split("\n")
@@ -89,13 +92,21 @@ export default function AdminPage() {
         return { label: (label || "Voce").trim(), amount: Number(amount) || 0 };
       });
     const amount = items.reduce((s, i) => s + i.amount, 0);
-    addDoc({
+    const doc = addDoc({
       leadId: selected.id,
-      type: "preventivo",
-      title: quoteForm.title,
+      type,
+      title:
+        type === "fattura"
+          ? quoteForm.title.replace(/preventivo/i, "Fattura") || "Fattura lavori"
+          : quoteForm.title,
       notes: quoteForm.notes,
-      items,
-      amount,
+      items:
+        type === "fattura" && items.length
+          ? items
+          : type === "fattura"
+            ? [{ label: "Acconto lavori", amount: amount || 8500 }]
+            : items,
+      amount: type === "fattura" && !items.length ? 8500 : amount,
       status: quoteForm.send ? "inviato" : "bozza",
     });
     if (quoteForm.send) {
@@ -103,25 +114,34 @@ export default function AdminPage() {
     }
     setMsg(
       quoteForm.send
-        ? `Preventivo inviato. Cliente: /area-cliente?code=${selected.accountCode}`
-        : "Preventivo salvato in bozza"
+        ? `${type === "fattura" ? "Fattura" : "Preventivo"} creato e inviato. Cliente: /area-cliente?code=${selected.accountCode}`
+        : "Documento salvato in bozza"
     );
     refresh();
+    try {
+      setPdfBusy(doc.id);
+      await downloadDocumentPdf(doc, selected);
+    } catch {
+      setMsg((m) => m + " (PDF non generato, riprova da Documenti)");
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
-  const createInvoice = () => {
-    if (!selected) return;
-    addDoc({
-      leadId: selected.id,
-      type: "fattura",
-      title: "Fattura acconto lavori",
-      notes: "Fattura dimostrativa — firma digitale online.",
-      items: [{ label: "Acconto 30% lavori", amount: 8500 }],
-      amount: 8500,
-      status: "inviato",
-    });
-    setMsg("Fattura inviata in area cliente");
-    refresh();
+  const downloadDoc = async (d: Document) => {
+    const lead = getLead(d.leadId) || selected;
+    if (!lead) {
+      setMsg("Lead non trovato per questo documento");
+      return;
+    }
+    try {
+      setPdfBusy(d.id);
+      await downloadDocumentPdf(d, lead);
+    } catch {
+      setMsg("Errore generazione PDF");
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
   if (!authed) {
@@ -167,7 +187,7 @@ export default function AdminPage() {
               {unread > 0
                 ? `${unread} notifiche non lette`
                 : "Nessuna nuova notifica"}{" "}
-              · dati salvati sul browser (demo)
+              · PDF generati con pdf-lib
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -275,7 +295,9 @@ export default function AdminPage() {
                   <p className="mt-4 text-sm text-warmgray-700">{selected.message}</p>
 
                   <div className="mt-6 border-t pt-4 space-y-3">
-                    <h3 className="font-semibold text-sm">Crea preventivo</h3>
+                    <h3 className="font-semibold text-sm">
+                      Crea preventivo / fattura PDF
+                    </h3>
                     <input
                       value={quoteForm.title}
                       onChange={(e) =>
@@ -314,17 +336,17 @@ export default function AdminPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={createDoc}
+                        onClick={() => createDoc("preventivo")}
                         className="rounded-lg bg-bronze px-4 py-2 text-sm font-semibold text-white"
                       >
-                        Genera preventivo
+                        Genera preventivo PDF
                       </button>
                       <button
                         type="button"
-                        onClick={createInvoice}
+                        onClick={() => createDoc("fattura")}
                         className="rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold"
                       >
-                        Invia fattura demo
+                        Genera fattura PDF
                       </button>
                       <Link
                         href={`/area-cliente?code=${selected.accountCode}`}
@@ -332,6 +354,32 @@ export default function AdminPage() {
                       >
                         Vedi come cliente
                       </Link>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t pt-4">
+                    <h3 className="font-semibold text-sm mb-2">
+                      Documenti di questo cliente
+                    </h3>
+                    <div className="space-y-2">
+                      {listDocs(selected.id).map((d) => (
+                        <div
+                          key={d.id}
+                          className="flex items-center justify-between gap-2 text-sm rounded-lg border px-3 py-2"
+                        >
+                          <span>
+                            {d.type} · {d.title} · {d.status}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={pdfBusy === d.id}
+                            onClick={() => downloadDoc(d)}
+                            className="text-bronze font-semibold disabled:opacity-50"
+                          >
+                            {pdfBusy === d.id ? "..." : "PDF"}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -349,7 +397,7 @@ export default function AdminPage() {
                   <th className="p-3">Titolo</th>
                   <th className="p-3">Importo</th>
                   <th className="p-3">Stato</th>
-                  <th className="p-3">Lead</th>
+                  <th className="p-3">Azioni</th>
                 </tr>
               </thead>
               <tbody>
@@ -359,7 +407,16 @@ export default function AdminPage() {
                     <td className="p-3">{d.title}</td>
                     <td className="p-3">€ {d.amount.toLocaleString("it-IT")}</td>
                     <td className="p-3">{d.status}</td>
-                    <td className="p-3 font-mono text-xs">{d.leadId}</td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        disabled={pdfBusy === d.id}
+                        onClick={() => downloadDoc(d)}
+                        className="text-bronze font-semibold disabled:opacity-50"
+                      >
+                        {pdfBusy === d.id ? "Genero..." : "Scarica PDF"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

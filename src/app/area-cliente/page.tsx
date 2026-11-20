@@ -11,6 +11,7 @@ import {
   type Lead,
   type Document,
 } from "@/lib/client-db";
+import { downloadDocumentPdf } from "@/lib/pdf";
 
 function ClientInner() {
   const search = useSearchParams();
@@ -20,6 +21,7 @@ function ClientInner() {
   const [error, setError] = useState("");
   const [signName, setSignName] = useState("");
   const [signingId, setSigningId] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
   const load = (c: string) => {
     setError("");
@@ -48,18 +50,43 @@ function ClientInner() {
     if (code.trim()) load(code.trim());
   };
 
-  const sign = (docId: string) => {
+  const sign = async (docId: string) => {
     if (!signName.trim() || !account) return;
     setSigningId(docId);
-    updateDoc(docId, {
+    const updated = updateDoc(docId, {
       status: "firmato",
       clientSignature: signName.trim(),
       signedAt: new Date().toISOString(),
     });
     updateLead(account.id, { status: "accettato" });
     load(account.accountCode);
+    if (updated) {
+      try {
+        setPdfBusy(docId);
+        await downloadDocumentPdf(updated, {
+          ...account,
+          status: "accettato",
+        });
+      } catch {
+        /* ignore download errors after sign */
+      } finally {
+        setPdfBusy(null);
+      }
+    }
     setSignName("");
     setSigningId(null);
+  };
+
+  const downloadPdf = async (d: Document) => {
+    if (!account) return;
+    try {
+      setPdfBusy(d.id);
+      await downloadDocumentPdf(d, account);
+    } catch {
+      setError("Errore generazione PDF. Riprova.");
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
   return (
@@ -72,7 +99,7 @@ function ClientInner() {
           Area cliente
         </h1>
         <p className="mt-2 text-warmgray-600 text-sm">
-          Inserisci il codice account ricevuto dopo la richiesta di preventivo.
+          Inserisci il codice account. Puoi scaricare i PDF e firmare online.
         </p>
 
         <form onSubmit={onSearch} className="mt-6 flex gap-2">
@@ -109,12 +136,12 @@ function ClientInner() {
 
             <div>
               <h2 className="font-serif text-xl font-semibold text-charcoal mb-3">
-                Documenti
+                Documenti PDF
               </h2>
               {docs.length === 0 ? (
                 <p className="text-sm text-warmgray-500 rounded-xl border border-dashed border-warmgray-300 p-6 text-center">
                   Nessun preventivo ancora. Quando l&apos;admin lo invia, lo vedi
-                  qui.
+                  qui e puoi scaricare il PDF.
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -162,11 +189,23 @@ function ClientInner() {
                         <p className="mt-2 text-xs text-warmgray-500">{d.notes}</p>
                       )}
 
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={pdfBusy === d.id}
+                          onClick={() => downloadPdf(d)}
+                          className="rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold hover:bg-charcoal hover:text-white disabled:opacity-50"
+                        >
+                          {pdfBusy === d.id ? "Genero PDF..." : "Scarica PDF"}
+                        </button>
+                      </div>
+
                       {d.status === "firmato" && (
                         <p className="mt-4 text-sm text-green-700">
                           Firmato da <strong>{d.clientSignature}</strong>
                           {d.signedAt &&
                             ` · ${new Date(d.signedAt).toLocaleString("it-IT")}`}
+                          . Il PDF scaricato include la firma.
                         </p>
                       )}
 
@@ -184,7 +223,9 @@ function ClientInner() {
                             onClick={() => sign(d.id)}
                             className="rounded-lg bg-bronze px-4 py-2 text-sm font-semibold text-white hover:bg-bronze-600 disabled:opacity-50"
                           >
-                            {signingId === d.id ? "..." : "Firma online"}
+                            {signingId === d.id
+                              ? "Firma..."
+                              : "Firma e scarica PDF"}
                           </button>
                         </div>
                       )}
