@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 
 export default function BeforeAfterSlider({
   before,
@@ -15,7 +15,17 @@ export default function BeforeAfterSlider({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(50);
+  const [w, setW] = useState(0);
   const dragging = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.offsetWidth));
+    ro.observe(el);
+    setW(el.offsetWidth);
+    return () => ro.disconnect();
+  }, []);
 
   const update = useCallback((clientX: number) => {
     const el = ref.current;
@@ -49,7 +59,7 @@ export default function BeforeAfterSlider({
       <img
         src={after}
         alt={altAfter}
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover object-center"
         draggable={false}
       />
       <div
@@ -60,8 +70,8 @@ export default function BeforeAfterSlider({
         <img
           src={before}
           alt={altBefore}
-          className="absolute inset-0 h-full max-w-none object-cover"
-          style={{ width: ref.current ? `${ref.current.offsetWidth}px` : "100%" }}
+          className="absolute inset-0 h-full object-cover object-center max-w-none"
+          style={{ width: w ? `${w}px` : "100%" }}
           draggable={false}
         />
       </div>
