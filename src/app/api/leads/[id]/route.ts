@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateLead } from "@/lib/leads-store";
+import { updateLead } from "@/lib/store";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin2025";
 
@@ -19,16 +19,15 @@ export async function PATCH(
   const { id } = await params;
   try {
     const body = await req.json();
-    const patch: { status?: "nuova" | "in_lavorazione" | "chiusa"; read?: boolean } =
-      {};
-    if (body.status) patch.status = body.status;
-    if (typeof body.read === "boolean") patch.read = body.read;
-    const lead = updateLead(id, patch);
+    const lead = updateLead(id, {
+      status: body.status,
+      read: body.read,
+    });
     if (!lead) {
-      return NextResponse.json({ error: "Richiesta non trovata" }, { status: 404 });
+      return NextResponse.json({ error: "Non trovato" }, { status: 404 });
     }
     return NextResponse.json({ lead });
   } catch {
-    return NextResponse.json({ error: "Richiesta non valida" }, { status: 400 });
+    return NextResponse.json({ error: "Errore" }, { status: 400 });
   }
 }

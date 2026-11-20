@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addLead, listLeads, unreadCount } from "@/lib/leads-store";
+import { addLead, listLeads, unreadCount } from "@/lib/store";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin2025";
 
@@ -13,9 +13,8 @@ export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
   }
-  const leads = listLeads();
   return NextResponse.json({
-    leads,
+    leads: listLeads(),
     unread: unreadCount(),
   });
 }
@@ -31,16 +30,28 @@ export async function POST(req: NextRequest) {
       body.type === "preventivo" || body.type === "altro"
         ? body.type
         : "sopralluogo";
+    const details = body.details && typeof body.details === "object" ? body.details : undefined;
 
-    if (!name || !email || !phone || !message) {
+    if (!name || !phone || !message) {
       return NextResponse.json(
-        { error: "Compila tutti i campi obbligatori" },
+        { error: "Compila i campi obbligatori" },
         { status: 400 }
       );
     }
 
-    const lead = addLead({ name, email, phone, message, type });
-    return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
+    const lead = addLead({
+      name,
+      email: email || `${phone.replace(/\D/g, "")}@cliente.local`,
+      phone,
+      message,
+      type,
+      details,
+    });
+
+    return NextResponse.json(
+      { ok: true, id: lead.id, accountCode: lead.accountCode },
+      { status: 201 }
+    );
   } catch {
     return NextResponse.json({ error: "Richiesta non valida" }, { status: 400 });
   }

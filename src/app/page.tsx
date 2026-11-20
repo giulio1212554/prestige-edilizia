@@ -1,6 +1,7 @@
 import Hero from "@/components/Hero";
 import Stats from "@/components/Stats";
 import Services from "@/components/Services";
+import BeforeAfter from "@/components/BeforeAfter";
 import Portfolio from "@/components/Portfolio";
 import Process from "@/components/Process";
 import About from "@/components/About";
@@ -14,6 +15,7 @@ export default function HomePage() {
       <Hero />
       <Stats />
       <Services />
+      <BeforeAfter />
       <Portfolio />
       <Process />
       <About />
