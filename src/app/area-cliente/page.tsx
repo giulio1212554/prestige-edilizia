@@ -161,84 +161,84 @@ function ClientInner() {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {docs.map((d) => (
-                    <article
-                      key={d.id}
-                      className="rounded-xl bg-white border border-warmgray-200 p-5"
-                    >
-                      <div className="flex justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase text-warmgray-400">{d.type}</p>
-                          <h3 className="font-semibold">{d.title}</h3>
-                        </div>
-                        <span className="text-xs font-semibold rounded-full px-2.5 py-1 bg-warmgray-100">
-                          {d.status}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex justify-between font-semibold border-t pt-3">
-                        <span>Totale imponibile</span>
-                        <span className="text-bronze">
-                          EUR {d.amount.toLocaleString("it-IT")}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={pdfBusy === d.id}
-                        onClick={() => downloadPdf(d)}
-                        className="mt-4 rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold"
+                  {docs.map((d) => {
+                    const hash = (
+                      d as unknown as { acceptance?: { documentHash?: string } }
+                    ).acceptance?.documentHash;
+                    return (
+                      <article
+                        key={d.id}
+                        className="rounded-xl bg-white border border-warmgray-200 p-5"
                       >
-                        {pdfBusy === d.id ? "Genero..." : "Scarica PDF cortesia"}
-                      </button>
+                        <div className="flex justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase text-warmgray-400">{d.type}</p>
+                            <h3 className="font-semibold">{d.title}</h3>
+                          </div>
+                          <span className="text-xs font-semibold rounded-full px-2.5 py-1 bg-warmgray-100">
+                            {d.status}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex justify-between font-semibold border-t pt-3">
+                          <span>Totale imponibile</span>
+                          <span className="text-bronze">
+                            EUR {d.amount.toLocaleString("it-IT")}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={pdfBusy === d.id}
+                          onClick={() => downloadPdf(d)}
+                          className="mt-4 rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold"
+                        >
+                          {pdfBusy === d.id ? "Genero..." : "Scarica PDF cortesia"}
+                        </button>
 
-                      {d.status === "firmato" && (
-                        <div className="mt-4 rounded-lg bg-green-50 border border-green-100 p-3 space-y-1">
-                          <p className="text-sm text-green-800">
-                            Accettato da <strong>{d.clientSignature}</strong>
-                            {d.signedAt &&
-                              ` · ${new Date(d.signedAt).toLocaleString("it-IT")}`}
-                          </p>
-                          <p className="text-xs text-green-700">
-                            Accettazione semplice tracciata — non FEA/FEQ.
-                          </p>
-                          {(d as { acceptance?: { documentHash?: string } }).acceptance
-                            ?.documentHash && (
-                            <p className="text-[10px] font-mono break-all text-green-800/80">
-                              Hash:{" "}
-                              {
-                                (d as { acceptance: { documentHash: string } }).acceptance
-                                  .documentHash
-                              }
+                        {d.status === "firmato" && (
+                          <div className="mt-4 rounded-lg bg-green-50 border border-green-100 p-3 space-y-1">
+                            <p className="text-sm text-green-800">
+                              Accettato da <strong>{d.clientSignature}</strong>
+                              {d.signedAt &&
+                                ` · ${new Date(d.signedAt).toLocaleString("it-IT")}`}
                             </p>
-                          )}
-                        </div>
-                      )}
+                            <p className="text-xs text-green-700">
+                              Accettazione semplice tracciata — non FEA/FEQ.
+                            </p>
+                            {hash && (
+                              <p className="text-[10px] font-mono break-all text-green-800/80">
+                                Hash: {hash}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
-                      {d.status === "inviato" && (
-                        <div className="mt-4 space-y-3 rounded-xl border border-bronze/30 bg-bronze/5 p-4">
-                          <p className="text-sm font-medium">Accetta il documento</p>
-                          <input
-                            value={signName}
-                            onChange={(e) => setSignName(e.target.value)}
-                            placeholder="Nome e cognome per esteso"
-                            className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
-                          />
-                          <SignaturePad onChange={setSignatureData} />
-                          <button
-                            type="button"
-                            disabled={
-                              !signName.trim() || !signatureData || signingId === d.id
-                            }
-                            onClick={() => sign(d.id)}
-                            className="w-full rounded-lg bg-bronze px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-                          >
-                            {signingId === d.id
-                              ? "Registrazione..."
-                              : "Registra accettazione e scarica PDF"}
-                          </button>
-                        </div>
-                      )}
-                    </article>
-                  ))}
+                        {d.status === "inviato" && (
+                          <div className="mt-4 space-y-3 rounded-xl border border-bronze/30 bg-bronze/5 p-4">
+                            <p className="text-sm font-medium">Accetta il documento</p>
+                            <input
+                              value={signName}
+                              onChange={(e) => setSignName(e.target.value)}
+                              placeholder="Nome e cognome per esteso"
+                              className="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                            />
+                            <SignaturePad onChange={setSignatureData} />
+                            <button
+                              type="button"
+                              disabled={
+                                !signName.trim() || !signatureData || signingId === d.id
+                              }
+                              onClick={() => sign(d.id)}
+                              className="w-full rounded-lg bg-bronze px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                              {signingId === d.id
+                                ? "Registrazione..."
+                                : "Registra accettazione e scarica PDF"}
+                            </button>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </div>
