@@ -25,9 +25,12 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<Lead | null>(null);
   const [tab, setTab] = useState<"leads" | "docs">("leads");
   const [quoteForm, setQuoteForm] = useState({
-    title: "Preventivo lavori",
-    notes: "Validità 30 giorni. IVA esclusa.",
-    lines: "Demolizioni;3000\nImpianti;8000\nFiniture;15000\nManodopera;5000",
+    title: "Preventivo ristrutturazione",
+    notes:
+      "Validita 30 giorni. Importi IVA esclusa (aliquota 10% in fattura per ristrutturazione residenziale). Esclusi: forniture non indicate, opere strutturali non previste.",
+    lines:
+      "Demolizioni selettive, rimozione rivestimenti e smaltimento in discarica autorizzata;3200\nRifacimento completo impianto idraulico e scarichi, predisposizione punti acqua;4800\nImpianto elettrico a norma CEI, punti luce/prese e quadro dedicato;3600\nPosa rivestimenti e pavimenti ceramici/gres, stuccatura e profili;7200\nFornitura e posa sanitari, rubinetteria e box doccia (categoria media);5200\nManodopera specializzata, coordinamento cantiere e direzione lavori;2000",
+    vatRate: "10",
     send: true,
   });
   const [msg, setMsg] = useState("");
@@ -92,6 +95,23 @@ export default function AdminPage() {
         return { label: (label || "Voce").trim(), amount: Number(amount) || 0 };
       });
     const amount = items.reduce((s, i) => s + i.amount, 0);
+    const vatRate = Number(quoteForm.vatRate) || 10;
+    const a = Math.round(amount * 0.3 * 100) / 100;
+    const s = Math.round(amount * 0.4 * 100) / 100;
+    const rest = Math.round((amount - a - s) * 100) / 100;
+    const paymentSchedule = [
+      { label: "Acconto alla firma del contratto", percent: 30, amount: a },
+      {
+        label: "SAL a completamento impianti e grezzo avanzato",
+        percent: 40,
+        amount: s,
+      },
+      {
+        label: "Saldo a consegna lavori e collaudo finale",
+        percent: 30,
+        amount: rest,
+      },
+    ];
     const doc = addDoc({
       leadId: selected.id,
       type,
@@ -104,10 +124,13 @@ export default function AdminPage() {
         type === "fattura" && items.length
           ? items
           : type === "fattura"
-            ? [{ label: "Acconto lavori", amount: amount || 8500 }]
+            ? [{ label: "Acconto lavori come da piano pagamenti", amount: a || 8500 }]
             : items,
-      amount: type === "fattura" && !items.length ? 8500 : amount,
+      amount: type === "fattura" && !items.length ? a || 8500 : amount,
       status: quoteForm.send ? "inviato" : "bozza",
+      vatExcluded: true,
+      vatRate,
+      paymentSchedule,
     });
     if (quoteForm.send) {
       updateLead(selected.id, { status: "preventivo_inviato", read: true });
@@ -187,7 +210,7 @@ export default function AdminPage() {
               {unread > 0
                 ? `${unread} notifiche non lette`
                 : "Nessuna nuova notifica"}{" "}
-              · PDF generati con pdf-lib
+              · PDF professionali con IVA e piano pagamenti
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -311,9 +334,9 @@ export default function AdminPage() {
                       onChange={(e) =>
                         setQuoteForm({ ...quoteForm, lines: e.target.value })
                       }
-                      rows={5}
+                      rows={6}
                       className="w-full rounded-lg border px-3 py-2 text-sm font-mono"
-                      placeholder="Voce;importo (una per riga)"
+                      placeholder="Descrizione dettagliata;importo (una per riga)"
                     />
                     <textarea
                       value={quoteForm.notes}
@@ -323,6 +346,28 @@ export default function AdminPage() {
                       rows={2}
                       className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <label className="flex items-center gap-2">
+                        Aliquota IVA
+                        <select
+                          value={quoteForm.vatRate}
+                          onChange={(e) =>
+                            setQuoteForm({
+                              ...quoteForm,
+                              vatRate: e.target.value,
+                            })
+                          }
+                          className="rounded-lg border px-2 py-1.5"
+                        >
+                          <option value="10">10% (ristrutturazione)</option>
+                          <option value="22">22% (ordinaria)</option>
+                          <option value="4">4% (agevolata)</option>
+                        </select>
+                      </label>
+                      <span className="text-xs text-warmgray-500">
+                        Importi IVA esclusa; aliquota in PDF e fattura
+                      </span>
+                    </div>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -405,7 +450,7 @@ export default function AdminPage() {
                   <tr key={d.id} className="border-t">
                     <td className="p-3">{d.type}</td>
                     <td className="p-3">{d.title}</td>
-                    <td className="p-3">€ {d.amount.toLocaleString("it-IT")}</td>
+                    <td className="p-3">EUR {d.amount.toLocaleString("it-IT")}</td>
                     <td className="p-3">{d.status}</td>
                     <td className="p-3">
                       <button
