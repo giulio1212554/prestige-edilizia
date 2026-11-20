@@ -45,6 +45,8 @@ export type Document = {
   createdAt: string;
   signedAt?: string;
   clientSignature?: string;
+  /** Data URL PNG della firma disegnata al touch */
+  signatureImage?: string;
 };
 
 const LEADS_KEY = "pe_leads_v1";
@@ -225,7 +227,14 @@ export function updateDoc(
   patch: Partial<
     Pick<
       Document,
-      "status" | "signedAt" | "clientSignature" | "notes" | "amount" | "items" | "title"
+      | "status"
+      | "signedAt"
+      | "clientSignature"
+      | "signatureImage"
+      | "notes"
+      | "amount"
+      | "items"
+      | "title"
     >
   >
 ): Document | null {

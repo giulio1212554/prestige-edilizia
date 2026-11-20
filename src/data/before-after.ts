@@ -7,8 +7,8 @@ export type BeforeAfterItem = {
 };
 
 /**
- * Prima / Dopo — stesso tipo di ambiente.
- * La coppia "ambiente" usa foto con layout allineato (stesso punto di vista).
+ * Stesso ambiente e stesso punto di vista.
+ * Coppie dimostrative: layout allineato (finestre/porta) tra prima e dopo.
  */
 export const beforeAfterItems: BeforeAfterItem[] = [
   {
@@ -17,7 +17,7 @@ export const beforeAfterItems: BeforeAfterItem[] = [
     description:
       "Stesso ambiente e stesso punto di vista: da malandato a completamente rinnovato.",
     before:
-      "https://images.unsplash.com/photo-1505843513577-22bb7d21e455?w=1200&q=80",
+      "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=1200&q=80",
     after:
       "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&q=80",
   },
@@ -25,17 +25,17 @@ export const beforeAfterItems: BeforeAfterItem[] = [
     id: "pavimenti",
     title: "Posa pavimenti e risanamento",
     description:
-      "Stessa stanza, stesse finestre: pavimento distrutto vs parquet nuovo.",
+      "Stessa stanza, stesso layout: pavimento degradato vs parquet nuovo.",
     before:
-      "https://images.unsplash.com/photo-1505843513577-22bb7d21e455?w=1200&q=80",
+      "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=1200&q=80",
     after:
-      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&q=80",
+      "https://images.unsplash.com/photo-1600210492499-cdc0c7c6a4e9?w=1200&q=80",
   },
   {
     id: "cucina",
     title: "Rifacimento cucina",
     description:
-      "Cucina abbandonata trasformata in spazio nuovo e funzionale.",
+      "Cucina da ristrutturare vs cucina completa e moderna.",
     before:
       "https://images.unsplash.com/photo-1556911220-bff31c28b2b0?w=1200&q=80",
     after:
@@ -45,7 +45,7 @@ export const beforeAfterItems: BeforeAfterItem[] = [
     id: "bagno",
     title: "Rifacimento bagno",
     description:
-      "Da bagno fatiscente a suite moderna con finiture di pregio.",
+      "Bagno da rinnovare vs bagno con finiture di pregio.",
     before:
       "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=1200&q=80",
     after:
