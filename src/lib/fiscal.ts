@@ -201,7 +201,7 @@ export function computeTotals(items: LineItem[]) {
     prev.vat += Math.round(imponibile * (it.vatRate / 100) * 100) / 100;
     byRate.set(key, prev);
   }
-  const vatBreakdown = [...byRate.values()].map((v) => ({
+  const vatBreakdown = Array.from(byRate.values()).map((v) => ({
     ...v,
     taxable: Math.round(v.taxable * 100) / 100,
     vat: Math.round(v.vat * 100) / 100,
@@ -221,7 +221,7 @@ export async function sha256Hex(payload: string): Promise<string> {
   if (typeof crypto !== "undefined" && crypto.subtle) {
     const data = new TextEncoder().encode(payload);
     const buf = await crypto.subtle.digest("SHA-256", data);
-    return [...new Uint8Array(buf)]
+    return Array.from(new Uint8Array(buf))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
   }
