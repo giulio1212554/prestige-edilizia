@@ -3,54 +3,35 @@
 import { useEffect, useState, Suspense, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-
-type Doc = {
-  id: string;
-  type: string;
-  title: string;
-  amount: number;
-  items: { label: string; amount: number }[];
-  notes: string;
-  status: string;
-  signedAt?: string;
-  clientSignature?: string;
-};
-
-type Account = {
-  code: string;
-  name: string;
-  email: string;
-  phone: string;
-  status: string;
-  details?: Record<string, unknown>;
-};
+import {
+  getLeadByCode,
+  listDocs,
+  updateDoc,
+  updateLead,
+  type Lead,
+  type Document,
+} from "@/lib/client-db";
 
 function ClientInner() {
   const search = useSearchParams();
   const [code, setCode] = useState(search.get("code") || "");
-  const [account, setAccount] = useState<Account | null>(null);
-  const [docs, setDocs] = useState<Doc[]>([]);
+  const [account, setAccount] = useState<Lead | null>(null);
+  const [docs, setDocs] = useState<Document[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [signName, setSignName] = useState("");
   const [signingId, setSigningId] = useState<string | null>(null);
 
-  const load = async (c: string) => {
-    setLoading(true);
+  const load = (c: string) => {
     setError("");
-    try {
-      const res = await fetch(`/api/client?code=${encodeURIComponent(c)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore");
-      setAccount(data.account);
-      setDocs(data.docs || []);
-    } catch (e) {
+    const lead = getLeadByCode(c);
+    if (!lead) {
       setAccount(null);
       setDocs([]);
-      setError(e instanceof Error ? e.message : "Account non trovato");
-    } finally {
-      setLoading(false);
+      setError("Account non trovato. Controlla il codice (es. PE-1001).");
+      return;
     }
+    setAccount(lead);
+    setDocs(listDocs(lead.id));
   };
 
   useEffect(() => {
@@ -67,23 +48,18 @@ function ClientInner() {
     if (code.trim()) load(code.trim());
   };
 
-  const sign = async (docId: string) => {
-    if (!signName.trim()) return;
+  const sign = (docId: string) => {
+    if (!signName.trim() || !account) return;
     setSigningId(docId);
-    try {
-      const res = await fetch(`/api/docs/${docId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sign", signature: signName.trim() }),
-      });
-      if (!res.ok) throw new Error("Firma non riuscita");
-      await load(code);
-      setSignName("");
-    } catch {
-      setError("Impossibile firmare il documento");
-    } finally {
-      setSigningId(null);
-    }
+    updateDoc(docId, {
+      status: "firmato",
+      clientSignature: signName.trim(),
+      signedAt: new Date().toISOString(),
+    });
+    updateLead(account.id, { status: "accettato" });
+    load(account.accountCode);
+    setSignName("");
+    setSigningId(null);
   };
 
   return (
@@ -114,14 +90,13 @@ function ClientInner() {
           </button>
         </form>
 
-        {loading && <p className="mt-6 text-sm text-warmgray-500">Caricamento…</p>}
         {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
 
         {account && (
           <div className="mt-8 space-y-6">
             <div className="rounded-xl bg-white border border-warmgray-200 p-6">
               <p className="text-xs uppercase tracking-wider text-warmgray-400">
-                Account {account.code}
+                Account {account.accountCode}
               </p>
               <p className="mt-1 font-serif text-xl font-semibold">{account.name}</p>
               <p className="text-sm text-warmgray-600">
@@ -138,7 +113,8 @@ function ClientInner() {
               </h2>
               {docs.length === 0 ? (
                 <p className="text-sm text-warmgray-500 rounded-xl border border-dashed border-warmgray-300 p-6 text-center">
-                  Nessun preventivo ancora. Ti avviseremo quando sarà pronto.
+                  Nessun preventivo ancora. Quando l&apos;admin lo invia, lo vedi
+                  qui.
                 </p>
               ) : (
                 <div className="space-y-4">

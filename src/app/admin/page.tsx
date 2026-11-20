@@ -2,37 +2,15 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-
-type Lead = {
-  id: string;
-  accountCode: string;
-  name: string;
-  email: string;
-  phone: string;
-  message: string;
-  type: string;
-  status: string;
-  createdAt: string;
-  read: boolean;
-  details?: {
-    city?: string;
-    workType?: string;
-    sqm?: string;
-    budget?: string;
-    deadline?: string;
-    urgent?: boolean;
-  };
-};
-
-type Doc = {
-  id: string;
-  leadId: string;
-  type: string;
-  title: string;
-  amount: number;
-  status: string;
-  items: { label: string; amount: number }[];
-};
+import {
+  listLeads,
+  listDocs,
+  updateLead,
+  addDoc,
+  unreadCount,
+  type Lead,
+  type Document,
+} from "@/lib/client-db";
 
 const PASSWORD = "admin2025";
 
@@ -40,7 +18,7 @@ export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [pwd, setPwd] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [docs, setDocs] = useState<Doc[]>([]);
+  const [docs, setDocs] = useState<Document[]>([]);
   const [unread, setUnread] = useState(0);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [tab, setTab] = useState<"leads" | "docs">("leads");
@@ -52,53 +30,55 @@ export default function AdminPage() {
   });
   const [msg, setMsg] = useState("");
 
-  const headers = () => ({
-    Authorization: `Bearer ${PASSWORD}`,
-    "Content-Type": "application/json",
-  });
-
-  const refresh = useCallback(async () => {
-    const [lr, dr] = await Promise.all([
-      fetch("/api/leads", { headers: headers() }),
-      fetch("/api/docs", { headers: headers() }),
-    ]);
-    if (!lr.ok) {
-      setAuthed(false);
-      return;
+  const refresh = useCallback(() => {
+    const l = listLeads();
+    setLeads(l);
+    setUnread(unreadCount());
+    setDocs(listDocs());
+    if (selected) {
+      const fresh = l.find((x) => x.id === selected.id) || null;
+      setSelected(fresh);
     }
-    const ld = await lr.json();
-    const dd = await dr.json();
-    setLeads(ld.leads || []);
-    setUnread(ld.unread || 0);
-    setDocs(dd.docs || []);
-    setAuthed(true);
+  }, [selected]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("pe-admin") === "1") {
+      setAuthed(true);
+      refresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && sessionStorage.getItem("pe-admin") === "1") {
-      refresh();
-    }
-  }, [refresh]);
+    if (!authed) return;
+    refresh();
+    const onStorage = () => refresh();
+    window.addEventListener("storage", onStorage);
+    const t = setInterval(refresh, 2000);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(t);
+    };
+  }, [authed, refresh]);
 
   const login = (e: FormEvent) => {
     e.preventDefault();
     if (pwd === PASSWORD) {
       sessionStorage.setItem("pe-admin", "1");
+      setAuthed(true);
+      setMsg("");
       refresh();
     } else setMsg("Password errata");
   };
 
-  const markRead = async (lead: Lead) => {
-    await fetch(`/api/leads/${lead.id}`, {
-      method: "PATCH",
-      headers: headers(),
-      body: JSON.stringify({ read: true }),
-    });
-    setSelected(lead);
+  const openLead = (lead: Lead) => {
+    updateLead(lead.id, { read: true });
+    setSelected({ ...lead, read: true });
     refresh();
   };
 
-  const createDoc = async () => {
+  const createDoc = () => {
     if (!selected) return;
     const items = quoteForm.lines
       .split("\n")
@@ -109,49 +89,48 @@ export default function AdminPage() {
         return { label: (label || "Voce").trim(), amount: Number(amount) || 0 };
       });
     const amount = items.reduce((s, i) => s + i.amount, 0);
-    const res = await fetch("/api/docs", {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        leadId: selected.id,
-        type: "preventivo",
-        title: quoteForm.title,
-        notes: quoteForm.notes,
-        items,
-        amount,
-        send: quoteForm.send,
-      }),
+    addDoc({
+      leadId: selected.id,
+      type: "preventivo",
+      title: quoteForm.title,
+      notes: quoteForm.notes,
+      items,
+      amount,
+      status: quoteForm.send ? "inviato" : "bozza",
     });
-    if (res.ok) {
-      setMsg("Preventivo creato" + (quoteForm.send ? " e inviato al cliente" : ""));
-      refresh();
-    } else setMsg("Errore creazione");
+    if (quoteForm.send) {
+      updateLead(selected.id, { status: "preventivo_inviato", read: true });
+    }
+    setMsg(
+      quoteForm.send
+        ? `Preventivo inviato. Cliente: /area-cliente?code=${selected.accountCode}`
+        : "Preventivo salvato in bozza"
+    );
+    refresh();
   };
 
-  const createInvoice = async (leadId: string) => {
-    const res = await fetch("/api/docs", {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        leadId,
-        type: "fattura",
-        title: "Fattura acconto lavori",
-        notes: "Fattura dimostrativa — firma digitale online.",
-        items: [{ label: "Acconto 30% lavori", amount: 8500 }],
-        amount: 8500,
-        send: true,
-      }),
+  const createInvoice = () => {
+    if (!selected) return;
+    addDoc({
+      leadId: selected.id,
+      type: "fattura",
+      title: "Fattura acconto lavori",
+      notes: "Fattura dimostrativa — firma digitale online.",
+      items: [{ label: "Acconto 30% lavori", amount: 8500 }],
+      amount: 8500,
+      status: "inviato",
     });
-    if (res.ok) {
-      setMsg("Fattura inviata");
-      refresh();
-    }
+    setMsg("Fattura inviata in area cliente");
+    refresh();
   };
 
   if (!authed) {
     return (
       <div className="min-h-screen bg-charcoal flex items-center justify-center px-4">
-        <form onSubmit={login} className="w-full max-w-sm rounded-xl bg-white p-8 space-y-4">
+        <form
+          onSubmit={login}
+          className="w-full max-w-sm rounded-xl bg-white p-8 space-y-4"
+        >
           <h1 className="font-serif text-2xl font-semibold text-charcoal">Admin</h1>
           <p className="text-sm text-warmgray-500">Password: admin2025</p>
           <input
@@ -162,7 +141,10 @@ export default function AdminPage() {
             placeholder="Password"
           />
           {msg && <p className="text-sm text-red-600">{msg}</p>}
-          <button type="submit" className="w-full rounded-lg bg-charcoal py-3 text-white font-semibold">
+          <button
+            type="submit"
+            className="w-full rounded-lg bg-charcoal py-3 text-white font-semibold"
+          >
             Entra
           </button>
           <Link href="/" className="block text-center text-sm text-bronze">
@@ -178,15 +160,23 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="font-serif text-3xl font-semibold text-charcoal">Dashboard</h1>
+            <h1 className="font-serif text-3xl font-semibold text-charcoal">
+              Dashboard
+            </h1>
             <p className="text-sm text-warmgray-500">
-              {unread > 0 ? `${unread} notifiche non lette` : "Nessuna nuova notifica"}
+              {unread > 0
+                ? `${unread} notifiche non lette`
+                : "Nessuna nuova notifica"}{" "}
+              · dati salvati sul browser (demo)
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => setTab("leads")}
+              onClick={() => {
+                setTab("leads");
+                refresh();
+              }}
               className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                 tab === "leads" ? "bg-charcoal text-white" : "bg-white border"
               }`}
@@ -195,12 +185,22 @@ export default function AdminPage() {
             </button>
             <button
               type="button"
-              onClick={() => setTab("docs")}
+              onClick={() => {
+                setTab("docs");
+                refresh();
+              }}
               className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                 tab === "docs" ? "bg-charcoal text-white" : "bg-white border"
               }`}
             >
               Documenti ({docs.length})
+            </button>
+            <button
+              type="button"
+              onClick={refresh}
+              className="rounded-lg border bg-white px-4 py-2 text-sm"
+            >
+              Aggiorna
             </button>
             <Link href="/" className="rounded-lg border bg-white px-4 py-2 text-sm">
               Sito
@@ -209,26 +209,37 @@ export default function AdminPage() {
         </div>
 
         {msg && (
-          <p className="mb-4 rounded-lg bg-bronze/10 text-bronze text-sm px-4 py-2">{msg}</p>
+          <p className="mb-4 rounded-lg bg-bronze/10 text-bronze text-sm px-4 py-2">
+            {msg}
+          </p>
         )}
 
         {tab === "leads" && (
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="space-y-3">
+              {leads.length === 0 && (
+                <p className="text-sm text-warmgray-500 p-4 border border-dashed rounded-xl">
+                  Nessuna richiesta. Invia un preventivo dal form in homepage.
+                </p>
+              )}
               {leads.map((l) => (
                 <button
                   key={l.id}
                   type="button"
-                  onClick={() => markRead(l)}
+                  onClick={() => openLead(l)}
                   className={`w-full text-left rounded-xl border bg-white p-4 transition hover:border-bronze ${
                     !l.read ? "border-bronze/40 shadow-sm" : "border-warmgray-200"
                   } ${selected?.id === l.id ? "ring-2 ring-bronze" : ""}`}
                 >
                   <div className="flex justify-between gap-2">
                     <span className="font-semibold text-charcoal">{l.name}</span>
-                    <span className="text-xs font-mono text-warmgray-400">{l.accountCode}</span>
+                    <span className="text-xs font-mono text-warmgray-400">
+                      {l.accountCode}
+                    </span>
                   </div>
-                  <p className="text-sm text-warmgray-600 mt-1 line-clamp-2">{l.message}</p>
+                  <p className="text-sm text-warmgray-600 mt-1 line-clamp-2">
+                    {l.message}
+                  </p>
                   <p className="text-xs text-warmgray-400 mt-2">
                     {l.status} · {new Date(l.createdAt).toLocaleString("it-IT")}
                     {l.details?.urgent ? " · URGENTE" : ""}
@@ -242,11 +253,15 @@ export default function AdminPage() {
                 <p className="text-sm text-warmgray-500">Seleziona una richiesta</p>
               ) : (
                 <>
-                  <h2 className="font-serif text-xl font-semibold">{selected.name}</h2>
+                  <h2 className="font-serif text-xl font-semibold">
+                    {selected.name}
+                  </h2>
                   <p className="text-sm text-warmgray-600">
                     {selected.phone} · {selected.email}
                   </p>
-                  <p className="mt-1 text-xs font-mono text-bronze">{selected.accountCode}</p>
+                  <p className="mt-1 text-xs font-mono text-bronze">
+                    {selected.accountCode}
+                  </p>
                   {selected.details && (
                     <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
                       {Object.entries(selected.details).map(([k, v]) => (
@@ -263,20 +278,26 @@ export default function AdminPage() {
                     <h3 className="font-semibold text-sm">Crea preventivo</h3>
                     <input
                       value={quoteForm.title}
-                      onChange={(e) => setQuoteForm({ ...quoteForm, title: e.target.value })}
+                      onChange={(e) =>
+                        setQuoteForm({ ...quoteForm, title: e.target.value })
+                      }
                       className="w-full rounded-lg border px-3 py-2 text-sm"
                       placeholder="Titolo"
                     />
                     <textarea
                       value={quoteForm.lines}
-                      onChange={(e) => setQuoteForm({ ...quoteForm, lines: e.target.value })}
+                      onChange={(e) =>
+                        setQuoteForm({ ...quoteForm, lines: e.target.value })
+                      }
                       rows={5}
                       className="w-full rounded-lg border px-3 py-2 text-sm font-mono"
                       placeholder="Voce;importo (una per riga)"
                     />
                     <textarea
                       value={quoteForm.notes}
-                      onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })}
+                      onChange={(e) =>
+                        setQuoteForm({ ...quoteForm, notes: e.target.value })
+                      }
                       rows={2}
                       className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
@@ -284,7 +305,9 @@ export default function AdminPage() {
                       <input
                         type="checkbox"
                         checked={quoteForm.send}
-                        onChange={(e) => setQuoteForm({ ...quoteForm, send: e.target.checked })}
+                        onChange={(e) =>
+                          setQuoteForm({ ...quoteForm, send: e.target.checked })
+                        }
                       />
                       Invia subito in area cliente
                     </label>
@@ -298,7 +321,7 @@ export default function AdminPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => createInvoice(selected.id)}
+                        onClick={createInvoice}
                         className="rounded-lg border border-charcoal px-4 py-2 text-sm font-semibold"
                       >
                         Invia fattura demo
@@ -318,7 +341,7 @@ export default function AdminPage() {
         )}
 
         {tab === "docs" && (
-          <div className="rounded-xl border bg-white overflow-hidden">
+          <div className="rounded-xl border bg-white overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-warmgray-50 text-left">
                 <tr>
