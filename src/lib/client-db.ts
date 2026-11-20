@@ -33,6 +33,12 @@ export type Lead = {
   details?: QuoteDetails;
 };
 
+export type PaymentMilestone = {
+  label: string;
+  percent: number;
+  amount: number;
+};
+
 export type Document = {
   id: string;
   leadId: string;
@@ -45,8 +51,12 @@ export type Document = {
   createdAt: string;
   signedAt?: string;
   clientSignature?: string;
-  /** Data URL PNG della firma disegnata al touch */
   signatureImage?: string;
+  /** true = importi IVA esclusa (default) */
+  vatExcluded?: boolean;
+  /** aliquota IVA applicabile, es. 10 o 22 */
+  vatRate?: number;
+  paymentSchedule?: PaymentMilestone[];
 };
 
 const LEADS_KEY = "pe_leads_v1";
@@ -108,18 +118,64 @@ const seedDocs: Document[] = [
     id: "doc-demo-1",
     leadId: "demo-2",
     type: "preventivo",
-    title: "Preventivo bagno + cucina",
+    title: "Preventivo ristrutturazione bagno + cucina",
     amount: 28500,
     items: [
-      { label: "Demolizioni e smaltimento", amount: 3200 },
-      { label: "Impianti idraulici/elettrici", amount: 6800 },
-      { label: "Rivestimenti e finiture", amount: 12500 },
-      { label: "Sanitari e rubinetteria", amount: 4200 },
-      { label: "Manodopera e direzione lavori", amount: 1800 },
+      {
+        label:
+          "Demolizioni selettive, rimozione rivestimenti e smaltimento in discarica autorizzata",
+        amount: 3200,
+      },
+      {
+        label:
+          "Rifacimento completo impianto idraulico e scarichi, predisposizione punti acqua",
+        amount: 4800,
+      },
+      {
+        label:
+          "Impianto elettrico a norma CEI, punti luce/prese e quadro dedicato zona bagno-cucina",
+        amount: 3600,
+      },
+      {
+        label:
+          "Posa rivestimenti e pavimenti ceramici/gres, stuccatura e profili",
+        amount: 7200,
+      },
+      {
+        label:
+          "Fornitura e posa sanitari, rubinetteria e box doccia (categoria media)",
+        amount: 5200,
+      },
+      {
+        label:
+          "Montaggio cucina a cura del cliente: collegamenti idraulici/elettrici e collaudo",
+        amount: 2500,
+      },
+      {
+        label:
+          "Manodopera specializzata, coordinamento cantiere e direzione lavori",
+        amount: 2000,
+      },
     ],
-    notes: "Validità 30 giorni. IVA esclusa.",
+    notes:
+      "Validita 30 giorni dalla data del documento. Importi IVA esclusa. Tempi indicativi di cantiere 6-8 settimane dal via lavori. Esclusi: forniture cucina, mobili su misura, eventuali opere strutturali non previste.",
     status: "inviato",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    vatExcluded: true,
+    vatRate: 10,
+    paymentSchedule: [
+      { label: "Acconto alla firma del contratto", percent: 30, amount: 8550 },
+      {
+        label: "SAL a completamento impianti e grezzo avanzato",
+        percent: 40,
+        amount: 11400,
+      },
+      {
+        label: "Saldo a consegna lavori e collaudo finale",
+        percent: 30,
+        amount: 8550,
+      },
+    ],
   },
 ];
 
@@ -217,6 +273,8 @@ export function addDoc(
     id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     status: input.status || "bozza",
     createdAt: new Date().toISOString(),
+    vatExcluded: input.vatExcluded !== false,
+    vatRate: input.vatRate ?? 10,
   };
   saveDocs([doc, ...listDocs()]);
   return doc;
@@ -235,6 +293,9 @@ export function updateDoc(
       | "amount"
       | "items"
       | "title"
+      | "vatExcluded"
+      | "vatRate"
+      | "paymentSchedule"
     >
   >
 ): Document | null {
