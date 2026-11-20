@@ -17,6 +17,11 @@ export type QuoteDetails = {
   deadline?: string;
   urgent?: boolean;
   description?: string;
+  taxCode?: string;
+  vatNumber?: string;
+  pec?: string;
+  sdiCode?: string;
+  address?: string;
 };
 
 export type Lead = {
@@ -37,12 +42,23 @@ export type PaymentMilestone = {
   label: string;
   percent: number;
   amount: number;
+  dueDate?: string;
+  paid?: boolean;
+  paidAt?: string;
 };
 
 export type Document = {
   id: string;
   leadId: string;
-  type: "preventivo" | "fattura" | "contratto";
+  type:
+    | "preventivo"
+    | "fattura"
+    | "contratto"
+    | "conferma_ordine"
+    | "sal"
+    | "fattura_elettronica"
+    | "ricevuta"
+    | "pagamento";
   title: string;
   amount: number;
   items: { label: string; amount: number }[];
@@ -52,9 +68,7 @@ export type Document = {
   signedAt?: string;
   clientSignature?: string;
   signatureImage?: string;
-  /** true = importi IVA esclusa (default) */
   vatExcluded?: boolean;
-  /** aliquota IVA applicabile, es. 10 o 22 */
   vatRate?: number;
   paymentSchedule?: PaymentMilestone[];
 };
@@ -90,6 +104,7 @@ const seedLeads: Lead[] = [
       budget: "50.000 - 100.000",
       deadline: "3-6 mesi",
       urgent: false,
+      taxCode: "BNCMRC80A01F205X",
     },
   },
   {
@@ -109,6 +124,8 @@ const seedLeads: Lead[] = [
       sqm: "50-80",
       budget: "20.000 - 40.000",
       urgent: true,
+      taxCode: "FRRLRA85B41F704Z",
+      sdiCode: "0000000",
     },
   },
 ];
@@ -137,8 +154,7 @@ const seedDocs: Document[] = [
         amount: 3600,
       },
       {
-        label:
-          "Posa rivestimenti e pavimenti ceramici/gres, stuccatura e profili",
+        label: "Posa rivestimenti e pavimenti ceramici/gres, stuccatura e profili",
         amount: 7200,
       },
       {
@@ -152,13 +168,12 @@ const seedDocs: Document[] = [
         amount: 2500,
       },
       {
-        label:
-          "Manodopera specializzata, coordinamento cantiere e direzione lavori",
+        label: "Manodopera specializzata, coordinamento cantiere e direzione lavori",
         amount: 2000,
       },
     ],
     notes:
-      "Validita 30 giorni dalla data del documento. Importi IVA esclusa. Tempi indicativi di cantiere 6-8 settimane dal via lavori. Esclusi: forniture cucina, mobili su misura, eventuali opere strutturali non previste.",
+      "Validita 30 giorni. Importi IVA esclusa. Esclusi: forniture cucina, opere strutturali non previste.",
     status: "inviato",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
     vatExcluded: true,
@@ -224,7 +239,7 @@ export function addLead(
 
 export function updateLead(
   id: string,
-  patch: Partial<Pick<Lead, "status" | "read">>
+  patch: Partial<Pick<Lead, "status" | "read" | "details">>
 ): Lead | null {
   const leads = listLeads();
   const i = leads.findIndex((l) => l.id === id);
@@ -282,27 +297,12 @@ export function addDoc(
 
 export function updateDoc(
   id: string,
-  patch: Partial<
-    Pick<
-      Document,
-      | "status"
-      | "signedAt"
-      | "clientSignature"
-      | "signatureImage"
-      | "notes"
-      | "amount"
-      | "items"
-      | "title"
-      | "vatExcluded"
-      | "vatRate"
-      | "paymentSchedule"
-    >
-  >
+  patch: Partial<Document> & Record<string, unknown>
 ): Document | null {
   const docs = listDocs();
   const i = docs.findIndex((d) => d.id === id);
   if (i < 0) return null;
-  docs[i] = { ...docs[i], ...patch };
+  docs[i] = { ...docs[i], ...patch } as Document;
   saveDocs(docs);
   return docs[i];
 }
