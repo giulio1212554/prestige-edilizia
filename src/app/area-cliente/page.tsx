@@ -12,6 +12,7 @@ import {
   type Document,
 } from "@/lib/client-db";
 import { downloadDocumentPdf } from "@/lib/pdf";
+import SignaturePad from "@/components/SignaturePad";
 
 function ClientInner() {
   const search = useSearchParams();
@@ -20,6 +21,7 @@ function ClientInner() {
   const [docs, setDocs] = useState<Document[]>([]);
   const [error, setError] = useState("");
   const [signName, setSignName] = useState("");
+  const [signatureData, setSignatureData] = useState<string | null>(null);
   const [signingId, setSigningId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
@@ -51,11 +53,12 @@ function ClientInner() {
   };
 
   const sign = async (docId: string) => {
-    if (!signName.trim() || !account) return;
+    if (!signName.trim() || !signatureData || !account) return;
     setSigningId(docId);
     const updated = updateDoc(docId, {
       status: "firmato",
       clientSignature: signName.trim(),
+      signatureImage: signatureData,
       signedAt: new Date().toISOString(),
     });
     updateLead(account.id, { status: "accettato" });
@@ -68,12 +71,13 @@ function ClientInner() {
           status: "accettato",
         });
       } catch {
-        /* ignore download errors after sign */
+        /* ignore */
       } finally {
         setPdfBusy(null);
       }
     }
     setSignName("");
+    setSignatureData(null);
     setSigningId(null);
   };
 
@@ -93,13 +97,14 @@ function ClientInner() {
     <div className="min-h-screen bg-warmgray-50 pt-28 pb-16 px-4">
       <div className="mx-auto max-w-2xl">
         <Link href="/" className="text-sm text-bronze hover:underline">
-          ← Torna al sito
+          \u2190 Torna al sito
         </Link>
         <h1 className="mt-4 font-serif text-3xl font-semibold text-charcoal">
           Area cliente
         </h1>
         <p className="mt-2 text-warmgray-600 text-sm">
-          Inserisci il codice account. Puoi scaricare i PDF e firmare online.
+          Inserisci il codice account. Puoi scaricare i PDF e firmare online con
+          firma grafica (dito o mouse).
         </p>
 
         <form onSubmit={onSearch} className="mt-6 flex gap-2">
@@ -125,9 +130,11 @@ function ClientInner() {
               <p className="text-xs uppercase tracking-wider text-warmgray-400">
                 Account {account.accountCode}
               </p>
-              <p className="mt-1 font-serif text-xl font-semibold">{account.name}</p>
+              <p className="mt-1 font-serif text-xl font-semibold">
+                {account.name}
+              </p>
               <p className="text-sm text-warmgray-600">
-                {account.phone} · {account.email}
+                {account.phone} \u00b7 {account.email}
               </p>
               <p className="mt-2 inline-block rounded-full bg-bronze/10 text-bronze text-xs font-semibold px-2.5 py-1">
                 Stato: {account.status.replace(/_/g, " ")}
@@ -140,7 +147,7 @@ function ClientInner() {
               </h2>
               {docs.length === 0 ? (
                 <p className="text-sm text-warmgray-500 rounded-xl border border-dashed border-warmgray-300 p-6 text-center">
-                  Nessun preventivo ancora. Quando l&apos;admin lo invia, lo vedi
+                  Nessun preventivo ancora. Quando l'admin lo invia, lo vedi
                   qui e puoi scaricare il PDF.
                 </p>
               ) : (
@@ -155,7 +162,9 @@ function ClientInner() {
                           <p className="text-xs uppercase text-warmgray-400">
                             {d.type}
                           </p>
-                          <h3 className="font-semibold text-charcoal">{d.title}</h3>
+                          <h3 className="font-semibold text-charcoal">
+                            {d.title}
+                          </h3>
                         </div>
                         <span
                           className={`text-xs font-semibold rounded-full px-2.5 py-1 ${
@@ -174,7 +183,7 @@ function ClientInner() {
                           <li key={i} className="flex justify-between gap-4">
                             <span className="text-warmgray-600">{it.label}</span>
                             <span className="font-medium">
-                              € {it.amount.toLocaleString("it-IT")}
+                              \u20ac {it.amount.toLocaleString("it-IT")}
                             </span>
                           </li>
                         ))}
@@ -182,11 +191,13 @@ function ClientInner() {
                       <div className="mt-3 flex justify-between border-t border-warmgray-100 pt-3 font-semibold">
                         <span>Totale</span>
                         <span className="text-bronze">
-                          € {d.amount.toLocaleString("it-IT")}
+                          \u20ac {d.amount.toLocaleString("it-IT")}
                         </span>
                       </div>
                       {d.notes && (
-                        <p className="mt-2 text-xs text-warmgray-500">{d.notes}</p>
+                        <p className="mt-2 text-xs text-warmgray-500">
+                          {d.notes}
+                        </p>
                       )}
 
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -201,31 +212,48 @@ function ClientInner() {
                       </div>
 
                       {d.status === "firmato" && (
-                        <p className="mt-4 text-sm text-green-700">
-                          Firmato da <strong>{d.clientSignature}</strong>
-                          {d.signedAt &&
-                            ` · ${new Date(d.signedAt).toLocaleString("it-IT")}`}
-                          . Il PDF scaricato include la firma.
-                        </p>
+                        <div className="mt-4 rounded-lg bg-green-50 border border-green-100 p-3">
+                          <p className="text-sm text-green-800">
+                            Firmato da <strong>{d.clientSignature}</strong>
+                            {d.signedAt &&
+                              ` \u00b7 ${new Date(d.signedAt).toLocaleString("it-IT")}`}
+                          </p>
+                          {d.signatureImage && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={d.signatureImage}
+                              alt="Firma"
+                              className="mt-2 h-16 object-contain bg-white rounded border border-green-100"
+                            />
+                          )}
+                        </div>
                       )}
 
                       {d.status === "inviato" && (
-                        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                        <div className="mt-4 space-y-3 rounded-xl border border-bronze/30 bg-bronze/5 p-4">
+                          <p className="text-sm font-medium text-charcoal">
+                            Firma il documento
+                          </p>
                           <input
                             value={signName}
                             onChange={(e) => setSignName(e.target.value)}
-                            placeholder="Digita nome e cognome per firmare"
-                            className="flex-1 rounded-lg border border-warmgray-200 px-3 py-2 text-sm focus:border-bronze focus:outline-none"
+                            placeholder="Nome e cognome (per esteso)"
+                            className="w-full rounded-lg border border-warmgray-200 px-3 py-2 text-sm focus:border-bronze focus:outline-none bg-white"
                           />
+                          <SignaturePad onChange={setSignatureData} />
                           <button
                             type="button"
-                            disabled={!signName.trim() || signingId === d.id}
+                            disabled={
+                              !signName.trim() ||
+                              !signatureData ||
+                              signingId === d.id
+                            }
                             onClick={() => sign(d.id)}
-                            className="rounded-lg bg-bronze px-4 py-2 text-sm font-semibold text-white hover:bg-bronze-600 disabled:opacity-50"
+                            className="w-full rounded-lg bg-bronze px-4 py-3 text-sm font-semibold text-white hover:bg-bronze-600 disabled:opacity-50"
                           >
                             {signingId === d.id
-                              ? "Firma..."
-                              : "Firma e scarica PDF"}
+                              ? "Firma in corso..."
+                              : "Conferma firma e scarica PDF"}
                           </button>
                         </div>
                       )}
@@ -246,7 +274,7 @@ export default function AreaClientePage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center text-warmgray-500">
-          Caricamento…
+          Caricamento\u2026
         </div>
       }
     >
