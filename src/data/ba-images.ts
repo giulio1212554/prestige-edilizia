@@ -1,2 +1,2 @@
-// Deprecated: images now live in before-after.ts
+// Deprecated — images inlined in before-after.ts
 export {};

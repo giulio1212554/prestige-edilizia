@@ -1,2 +1,2 @@
-// Deprecated placeholder
+// Deprecated
 export const RA = "";
