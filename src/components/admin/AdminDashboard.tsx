@@ -33,6 +33,9 @@ const weekPulse = [
   { d: "Dom", v: 20 },
 ];
 
+/** Altezza area colonne in px (le % CSS non funzionano bene nel flex). */
+const CHART_H = 160;
+
 const quickActions: {
   id: AdminNavId;
   label: string;
@@ -90,14 +93,23 @@ export default function AdminDashboard({ firstName, isDirezione, stats, onNaviga
             <h2 className="font-semibold text-sm text-slate-900">Pulse progetti settimanale</h2>
             <span className="text-[11px] text-slate-400 border rounded-lg px-2 py-0.5">Questa settimana</span>
           </div>
-          <div className="flex items-end gap-2 h-44">
-            {weekPulse.map((b) => (
-              <div key={b.d} className="flex-1 flex flex-col items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-slate-500">{b.v}%</span>
-                <div className="w-full rounded-t-md bg-blue-500" style={{ height: `${b.v}%` }} />
-                <span className="text-[10px] text-slate-400">{b.d}</span>
-              </div>
-            ))}
+
+          {/* Grafico a colonne — altezza in px, non in % */}
+          <div className="flex items-end justify-between gap-1.5 sm:gap-2" style={{ height: CHART_H + 28 }}>
+            {weekPulse.map((b) => {
+              const barPx = Math.max(8, Math.round((b.v / 100) * CHART_H));
+              return (
+                <div key={b.d} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                  <span className="text-[10px] font-semibold text-slate-600 mb-1 tabular-nums">{b.v}%</span>
+                  <div
+                    className="w-full max-w-[40px] rounded-t-md bg-blue-500 shadow-sm"
+                    style={{ height: barPx }}
+                    title={`${b.d}: ${b.v}%`}
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1.5">{b.d}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
