@@ -12,7 +12,8 @@ import {
   type Lead, type Document,
 } from "@/lib/client-db";
 import FiscalPanel from "@/components/FiscalPanel";
-import AdminModules from "@/components/AdminModules";
+import OpsModules from "@/components/admin/OpsModules";
+import { subscribeOps, unreadNotifs, createSafety, createMaterial } from "@/lib/ops-store";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import { company } from "@/data/company";
 import { seedTasks, seedApprovals, seedSafety, seedMessages } from "@/data/admin-seed";
@@ -51,6 +52,7 @@ export default function AdminApp() {
   const [docs, setDocs] = useState<Document[]>([]);
   const [unread, setUnread] = useState(0);
   const [nav, setNav] = useState<NavId>("dashboard");
+  const [opsUnread, setOpsUnread] = useState(0);
 
   const navMain = useMemo(
     () => (!role ? [] : navMeta.filter((n) => role.access.includes(n.id))),
@@ -77,8 +79,14 @@ export default function AdminApp() {
   useEffect(() => {
     if (!role) return;
     refresh();
+    const tick = () => setOpsUnread(unreadNotifs(role.id));
+    tick();
     const t = setInterval(refresh, 3000);
-    return () => clearInterval(t);
+    const unsub = subscribeOps(tick);
+    return () => {
+      clearInterval(t);
+      unsub();
+    };
   }, [role, refresh]);
 
   const enterAs = (r: AdminRole) => {
@@ -124,7 +132,7 @@ export default function AdminApp() {
             </div>
           </div>
           <h1 className="text-2xl font-semibold text-slate-900 mb-2">Chi sei oggi?</h1>
-          <p className="text-sm text-slate-500 mb-6">Nessuna password. Scegli un personaggio.</p>
+          <p className="text-sm text-slate-500 mb-6">Nessuna password. Cambia ruolo in un click in call col cliente.</p>
           <div className="grid sm:grid-cols-2 gap-3">
             {ADMIN_ROLES.map((r) => (
               <button
@@ -144,9 +152,7 @@ export default function AdminApp() {
                     <p className="font-semibold text-slate-900">{r.name}</p>
                     <p className="text-sm text-blue-600 font-medium">{r.title}</p>
                     <p className="mt-1 text-xs text-slate-500">{r.blurb}</p>
-                    {!r.enabled && (
-                      <p className="mt-2 text-[11px] font-semibold text-slate-400 uppercase">Prossimamente</p>
-                    )}
+                    {!r.enabled && <p className="mt-2 text-[11px] font-semibold text-slate-400 uppercase">Prossimamente</p>}
                   </div>
                   {r.enabled && <ArrowRight className="h-4 w-4 text-slate-300 mt-1" />}
                 </div>
@@ -198,11 +204,11 @@ export default function AdminApp() {
         <div className="border-t border-slate-100 p-3 space-y-1">
           <button type="button" className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
             <MessageSquare className="h-4 w-4" /> Messaggi
-            <span className="ml-auto text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5">{seedMessages.length}</span>
+            <span className="ml-auto text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5">{opsUnread || seedMessages.length}</span>
           </button>
           <button type="button" className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
             <Bell className="h-4 w-4" /> Notifiche
-            <span className="ml-auto text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5">{unread || 4}</span>
+            <span className="ml-auto text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5">{opsUnread || unread || 0}</span>
           </button>
           <div className="flex items-center gap-2 px-2 pt-3">
             <div className={`h-9 w-9 rounded-full ${role.color} text-white flex items-center justify-center text-xs font-bold`}>
@@ -257,6 +263,36 @@ export default function AdminApp() {
             ))}
           </div>
 
+          {role.id === "capocantiere" && nav === "dashboard" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  const t = window.prompt("Descrivi il problema di sicurezza");
+                  if (!t) return;
+                  createSafety({ title: t, site: "Residenza Navigli", severity: "Alta", createdBy: role.name });
+                  setNav("sicurezza");
+                }}
+                className="rounded-2xl bg-rose-600 text-white px-4 py-5 text-base font-bold shadow-md active:scale-[0.98]"
+              >
+                Segnala problema
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const item = window.prompt("Materiale da richiedere");
+                  if (!item) return;
+                  const qty = window.prompt("Quantita", "10") || "1";
+                  createMaterial({ item, qty, site: "Residenza Navigli", createdBy: role.name });
+                  setNav("magazzino");
+                }}
+                className="rounded-2xl bg-violet-600 text-white px-4 py-5 text-base font-bold shadow-md active:scale-[0.98]"
+              >
+                Richiedi materiale
+              </button>
+            </div>
+          )}
+
           {nav === "dashboard" && can("dashboard") && (
             <AdminDashboard
               firstName={role.name.split(" ")[0]}
@@ -266,7 +302,7 @@ export default function AdminApp() {
             />
           )}
 
-          {modules.has(nav) && can(nav) && <AdminModules section={nav as "progetti"} />}
+          {modules.has(nav) && can(nav) && <OpsModules section={nav as "progetti"} role={role} />}
 
           {nav === "richieste" && can("richieste") && (
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
