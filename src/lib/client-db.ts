@@ -168,9 +168,20 @@ export function listLeads(): Lead[] {
   if (!ensureBrowser()) return seedLeads;
   let leads = safeParse<Lead[]>(localStorage.getItem(LEADS_KEY), []);
   if (!leads.length) {
-    leads = seedLeads;
+    leads = structuredClone(seedLeads);
     localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+    return leads;
   }
+  // Aggiorna accessPin mancanti dai seed (localStorage vecchio)
+  let changed = false;
+  for (const s of seedLeads) {
+    const i = leads.findIndex((l) => l.accountCode === s.accountCode);
+    if (i >= 0 && !leads[i].accessPin && s.accessPin) {
+      leads[i] = { ...leads[i], accessPin: s.accessPin, details: leads[i].details || s.details };
+      changed = true;
+    }
+  }
+  if (changed) localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
   return leads;
 }
 
@@ -221,11 +232,42 @@ export function getLeadByCode(code: string): Lead | null {
   return listLeads().find((l) => l.accountCode.toUpperCase() === c) || null;
 }
 
+/** Password demo note per codice (sempre valide, anche se localStorage e vecchio). */
+const DEMO_PINS: Record<string, string[]> = {
+  "PE-1001": ["navigli", "1001", "demo"],
+  "PE-1002": ["monza", "1002", "demo"],
+};
+
 export function authClient(code: string, pin: string): Lead | null {
-  const lead = getLeadByCode(code);
+  const c = code.trim().toUpperCase();
+  const p = pin.trim().toLowerCase();
+  if (!c || !p) return null;
+
+  const allowed = DEMO_PINS[c];
+  if (allowed && allowed.includes(p)) {
+    const lead = getLeadByCode(c);
+    if (lead) return lead;
+    const fromSeed = seedLeads.find((l) => l.accountCode.toUpperCase() === c);
+    if (fromSeed) {
+      const leads = listLeads();
+      if (!leads.some((l) => l.accountCode.toUpperCase() === c)) {
+        leads.unshift({ ...fromSeed });
+        saveLeads(leads);
+      }
+      return getLeadByCode(c) || fromSeed;
+    }
+  }
+
+  const lead = getLeadByCode(c);
   if (!lead) return null;
-  const expected = (lead.accessPin || lead.accountCode.replace(/\D/g, "")).toLowerCase();
-  if (pin.trim().toLowerCase() !== expected) return null;
+  const candidates = [
+    lead.accessPin,
+    lead.accountCode.replace(/\D/g, ""),
+    "demo",
+  ]
+    .filter(Boolean)
+    .map((x) => String(x).toLowerCase());
+  if (!candidates.includes(p)) return null;
   return lead;
 }
 
@@ -238,6 +280,11 @@ export function listDocs(leadId?: string): Document[] {
   let docs = safeParse<Document[]>(localStorage.getItem(DOCS_KEY), []);
   if (!docs.length) {
     docs = seedDocs;
+    localStorage.setItem(DOCS_KEY, JSON.stringify(docs));
+  }
+  // Assicura doc seed per demo-2 se manca
+  if (!docs.some((d) => d.id === "doc-demo-1")) {
+    docs = [...seedDocs, ...docs];
     localStorage.setItem(DOCS_KEY, JSON.stringify(docs));
   }
   if (leadId) return docs.filter((d) => d.leadId === leadId);
