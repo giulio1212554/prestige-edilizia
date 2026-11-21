@@ -10,6 +10,7 @@ import {
   createMaterial,
   createExpense,
   decideApproval,
+  createQuality,
   type OpsState,
 } from "@/lib/ops-store";
 import type { AdminRole } from "@/data/admin-roles";
@@ -102,40 +103,93 @@ export default function OpsModules({ section, role }: { section: Section; role: 
   const isCapo = role.id === "capocantiere";
   const isAdmin = role.id === "amministrazione" || role.id === "direzione";
   const isDir = role.id === "direzione" || role.id === "project_manager";
+  const isHse = role.id === "qualita_hse" || role.id === "direzione" || role.id === "project_manager";
 
   if (section === "progetti") {
     return (
       <div className="space-y-4">
         {isPM && (
-          <form
-            className="rounded-2xl border bg-white p-4 shadow-sm space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!title.trim()) return;
-              const key = "pe-projects-v1";
-              const raw = localStorage.getItem(key);
-              const list = raw ? JSON.parse(raw) : [];
-              list.unshift({
-                id: "PRJ-" + Date.now().toString(36).toUpperCase(),
-                name: title.trim(),
-                city: extra.trim() || "Milano",
-                progress: 0,
-                status: "Avviato",
-                pm: role.name,
-              });
-              localStorage.setItem(key, JSON.stringify(list));
-              setTitle("");
-              setExtra("");
-              window.dispatchEvent(new Event("pe-ops"));
-            }}
-          >
+          <form className="rounded-2xl border bg-white p-4 shadow-sm space-y-3" onSubmit={(e) => {
+            e.preventDefault();
+            if (!title.trim()) return;
+            const key = "pe-projects-v1";
+            const raw = localStorage.getItem(key);
+            const list = raw ? JSON.parse(raw) : [];
+            list.unshift({
+              id: "PRJ-" + Date.now().toString(36).toUpperCase(),
+              name: title.trim(),
+              city: extra.trim() || "Milano",
+              progress: 0,
+              status: "Avviato",
+              pm: role.name,
+            });
+            localStorage.setItem(key, JSON.stringify(list));
+            setTitle("");
+            setExtra("");
+            window.dispatchEvent(new Event("pe-ops"));
+          }}>
             <p className="text-sm font-semibold">Nuovo progetto</p>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nome cantiere / intervento" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nome cantiere" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Citta" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Crea progetto</button>
           </form>
         )}
         <ProjectsTable />
+      </div>
+    );
+  }
+
+  if (section === "qualita") {
+    return (
+      <div className="space-y-4">
+        {isHse && (
+          <form className="rounded-2xl border bg-white p-4 shadow-sm space-y-3" onSubmit={(e) => {
+            e.preventDefault();
+            if (!title.trim()) return;
+            createQuality({
+              title: title.trim(),
+              site: "Residenza Navigli",
+              result: (extra as "Conforme" | "Non conforme" | "Da verificare") || "Da verificare",
+              createdBy: role.name,
+            });
+            setTitle("");
+            setExtra("");
+          }}>
+            <p className="text-sm font-semibold">Nuovo controllo qualita</p>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Verifica posa isolante piano 1" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <select value={extra || "Da verificare"} onChange={(e) => setExtra(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm">
+              <option>Da verificare</option>
+              <option>Conforme</option>
+              <option>Non conforme</option>
+            </select>
+            <button type="submit" className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Registra controllo</button>
+          </form>
+        )}
+        <div className="rounded-2xl border bg-white overflow-x-auto shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left">
+              <tr>
+                <th className="p-3">Controllo</th>
+                <th className="p-3">Esito</th>
+                <th className="p-3">Da</th>
+                <th className="p-3">Quando</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(ops.quality || []).length === 0 && (
+                <tr><td colSpan={4} className="p-4 text-slate-400 text-sm">Nessun controllo registrato.</td></tr>
+              )}
+              {(ops.quality || []).map((q) => (
+                <tr key={q.id} className="border-t border-slate-100">
+                  <td className="p-3 font-medium">{q.title}</td>
+                  <td className="p-3">{q.result}</td>
+                  <td className="p-3">{q.createdBy}</td>
+                  <td className="p-3 text-xs text-slate-500">{new Date(q.createdAt).toLocaleString("it-IT")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -191,7 +245,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
   if (section === "sicurezza") {
     return (
       <div className="space-y-4">
-        {(isCapo || isDir) && (
+        {(isCapo || isDir || role.id === "qualita_hse") && (
           <form className="rounded-2xl border bg-white p-4 shadow-sm space-y-3" onSubmit={(e) => {
             e.preventDefault();
             if (!title.trim()) return;
