@@ -113,11 +113,18 @@ export const ADMIN_ROLES: AdminRole[] = [
     id: "qualita_hse",
     name: "Sara Verdi",
     title: "Qualita / HSE",
-    blurb: "Controlli qualita e sicurezza (prossimamente interattivo)",
+    blurb: "Controlli qualita, non conformita e sicurezza di cantiere",
     color: "bg-violet-600",
     initials: "SV",
-    access: ["dashboard", "qualita", "sicurezza", "report"],
-    enabled: false,
+    access: [
+      "dashboard",
+      "qualita",
+      "sicurezza",
+      "progetti",
+      "report",
+      "task",
+    ],
+    enabled: true,
   },
 ];
 
