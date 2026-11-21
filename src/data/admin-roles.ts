@@ -36,7 +36,7 @@ export const ADMIN_ROLES: AdminRole[] = [
     id: "direzione",
     name: "Andrea Prestige",
     title: "Direzione",
-    blurb: "Accesso completo a tutte le sezioni (come prima)",
+    blurb: "Accesso completo: vede e approva tutto in tempo reale",
     color: "bg-slate-800",
     initials: "AP",
     access: [
@@ -60,7 +60,7 @@ export const ADMIN_ROLES: AdminRole[] = [
     id: "project_manager",
     name: "Marco Bianchi",
     title: "Project Manager",
-    blurb: "Progetti, task, approvazioni, qualità e report",
+    blurb: "Crea task, vede segnalazioni, approva con la Direzione",
     color: "bg-blue-600",
     initials: "MB",
     access: [
@@ -69,6 +69,8 @@ export const ADMIN_ROLES: AdminRole[] = [
       "task",
       "approvazioni",
       "qualita",
+      "sicurezza",
+      "magazzino",
       "report",
     ],
     enabled: true,
@@ -77,7 +79,7 @@ export const ADMIN_ROLES: AdminRole[] = [
     id: "capocantiere",
     name: "Luca Ferrari",
     title: "Capocantiere",
-    blurb: "Task, magazzino, attrezzature, sicurezza",
+    blurb: "Task suoi, segnalazioni, richieste materiale — pensato per il telefono",
     color: "bg-amber-600",
     initials: "LF",
     access: [
@@ -88,13 +90,13 @@ export const ADMIN_ROLES: AdminRole[] = [
       "sicurezza",
       "progetti",
     ],
-    enabled: false,
+    enabled: true,
   },
   {
     id: "amministrazione",
     name: "Elena Rossi",
     title: "Amministrazione",
-    blurb: "Richieste, documenti, fiscale, spese",
+    blurb: "Propone spese che la Direzione approva in Approvazioni",
     color: "bg-emerald-600",
     initials: "ER",
     access: [
@@ -103,25 +105,25 @@ export const ADMIN_ROLES: AdminRole[] = [
       "documenti",
       "fiscale",
       "spese",
-      "report",
+      "approvazioni",
     ],
-    enabled: false,
+    enabled: true,
   },
   {
     id: "qualita_hse",
     name: "Sara Verdi",
-    title: "Qualità & HSE",
-    blurb: "Controlli qualità e sicurezza cantiere",
-    color: "bg-rose-600",
+    title: "Qualita / HSE",
+    blurb: "Controlli qualita e sicurezza (prossimamente interattivo)",
+    color: "bg-violet-600",
     initials: "SV",
-    access: ["dashboard", "qualita", "sicurezza", "progetti", "report"],
+    access: ["dashboard", "qualita", "sicurezza", "report"],
     enabled: false,
   },
 ];
 
 export const ROLE_STORAGE_KEY = "pe-admin-role";
 
-export function getRoleById(id: string | null): AdminRole | null {
+export function getRoleById(id: string | null | undefined): AdminRole | null {
   if (!id) return null;
-  return ADMIN_ROLES.find((r) => r.id === id) || null;
+  return ADMIN_ROLES.find((r) => r.id === id) ?? null;
 }
