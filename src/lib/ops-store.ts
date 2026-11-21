@@ -54,6 +54,15 @@ export type OpsApproval = {
   createdAt: string;
 };
 
+export type OpsQuality = {
+  id: string;
+  title: string;
+  site: string;
+  result: "Conforme" | "Non conforme" | "Da verificare";
+  createdBy: string;
+  createdAt: string;
+};
+
 export type OpsNotif = {
   id: string;
   text: string;
@@ -68,6 +77,7 @@ export type OpsState = {
   materials: OpsMaterial[];
   expenses: OpsExpense[];
   approvals: OpsApproval[];
+  quality: OpsQuality[];
   notifs: OpsNotif[];
 };
 
@@ -109,6 +119,16 @@ const seed: OpsState = {
     },
   ],
   safety: [],
+  quality: [
+    {
+      id: "Q-1001",
+      title: "Controllo getto solaio piano 2",
+      site: "Residenza Navigli",
+      result: "Conforme",
+      createdBy: "Sara Verdi",
+      createdAt: now(),
+    },
+  ],
   materials: [],
   expenses: [],
   approvals: [],
@@ -116,7 +136,7 @@ const seed: OpsState = {
     {
       id: "N-1",
       text: "Benvenuto nel gestionale operativo Prestige",
-      forRoles: ["direzione", "project_manager", "capocantiere", "amministrazione"],
+      forRoles: ["direzione", "project_manager", "capocantiere", "amministrazione", "qualita_hse"],
       read: false,
       createdAt: now(),
     },
@@ -131,7 +151,9 @@ function read(): OpsState {
       localStorage.setItem(KEY, JSON.stringify(seed));
       return structuredClone(seed);
     }
-    return JSON.parse(raw) as OpsState;
+    const parsed = JSON.parse(raw) as OpsState;
+    if (!parsed.quality) parsed.quality = structuredClone(seed.quality);
+    return parsed;
   } catch {
     return structuredClone(seed);
   }
@@ -329,6 +351,33 @@ export function decideApproval(
     "capocantiere",
   ]);
   write(s);
+}
+
+export function createQuality(input: {
+  title: string;
+  site: string;
+  result: OpsQuality["result"];
+  createdBy: string;
+}) {
+  const s = read();
+  const row: OpsQuality = {
+    id: uid("Q"),
+    title: input.title,
+    site: input.site,
+    result: input.result,
+    createdBy: input.createdBy,
+    createdAt: now(),
+  };
+  s.quality = s.quality || [];
+  s.quality.unshift(row);
+  pushNotif(s, `Controllo qualita: ${row.title} (${row.result})`, [
+    "direzione",
+    "project_manager",
+    "qualita_hse",
+    "capocantiere",
+  ]);
+  write(s);
+  return row;
 }
 
 export function unreadNotifs(roleId: string) {
