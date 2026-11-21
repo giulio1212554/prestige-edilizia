@@ -1,1 +1,3 @@
-see_next
+"use client";
+
+export { default } from "@/components/admin/AdminApp";
