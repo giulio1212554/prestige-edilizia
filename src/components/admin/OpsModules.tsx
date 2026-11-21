@@ -25,6 +25,66 @@ type Section =
   | "approvazioni"
   | "report";
 
+type ProjectRow = {
+  id: string;
+  name: string;
+  city: string;
+  progress: number;
+  status: string;
+  pm: string;
+};
+
+function ProjectsTable() {
+  const [rows, setRows] = useState<ProjectRow[]>([]);
+  useEffect(() => {
+    const load = () => {
+      try {
+        const key = "pe-projects-v1";
+        const raw = localStorage.getItem(key);
+        const custom: ProjectRow[] = raw ? JSON.parse(raw) : [];
+        const seed: ProjectRow[] = [
+          { id: "PRJ-1001", name: "Residenza Navigli", city: "Milano", progress: 62, status: "In corso", pm: "Marco Bianchi" },
+          { id: "PRJ-1002", name: "Villa Como", city: "Como", progress: 28, status: "Avviato", pm: "Marco Bianchi" },
+        ];
+        setRows([...custom, ...seed]);
+      } catch {
+        setRows([]);
+      }
+    };
+    load();
+    window.addEventListener("pe-ops", load);
+    return () => window.removeEventListener("pe-ops", load);
+  }, []);
+  return (
+    <div className="rounded-2xl border bg-white overflow-x-auto shadow-sm">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 text-left">
+          <tr>
+            <th className="p-3">ID</th>
+            <th className="p-3">Progetto</th>
+            <th className="p-3">Citta</th>
+            <th className="p-3">%</th>
+            <th className="p-3">Stato</th>
+            <th className="p-3">PM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={p.id} className="border-t border-slate-100">
+              <td className="p-3 font-mono text-xs">{p.id}</td>
+              <td className="p-3 font-medium">{p.name}</td>
+              <td className="p-3">{p.city}</td>
+              <td className="p-3">{p.progress}%</td>
+              <td className="p-3">{p.status}</td>
+              <td className="p-3">{p.pm}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function OpsModules({ section, role }: { section: Section; role: AdminRole }) {
   const [ops, setOps] = useState<OpsState | null>(null);
   const [title, setTitle] = useState("");
@@ -43,8 +103,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
   const isAdmin = role.id === "amministrazione" || role.id === "direzione";
   const isDir = role.id === "direzione" || role.id === "project_manager";
 
-  if (section === "task") {
-    const mine = isCapo ? ops.tasks.filter((t) => t.assigneeRole === "capocantiere") : ops.tasks;
+  if (section === "progetti") {
     return (
       <div className="space-y-4">
         {isPM && (
@@ -53,20 +112,55 @@ export default function OpsModules({ section, role }: { section: Section; role: 
             onSubmit={(e) => {
               e.preventDefault();
               if (!title.trim()) return;
-              createTask({
-                title: title.trim(),
-                project: "Residenza Navigli",
-                assignee: "Luca Ferrari",
-                assigneeRole: "capocantiere",
-                pri: "Media",
-                due: new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10),
-                createdBy: role.name,
+              const key = "pe-projects-v1";
+              const raw = localStorage.getItem(key);
+              const list = raw ? JSON.parse(raw) : [];
+              list.unshift({
+                id: "PRJ-" + Date.now().toString(36).toUpperCase(),
+                name: title.trim(),
+                city: extra.trim() || "Milano",
+                progress: 0,
+                status: "Avviato",
+                pm: role.name,
               });
+              localStorage.setItem(key, JSON.stringify(list));
               setTitle("");
+              setExtra("");
+              window.dispatchEvent(new Event("pe-ops"));
             }}
           >
+            <p className="text-sm font-semibold">Nuovo progetto</p>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nome cantiere / intervento" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Citta" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Crea progetto</button>
+          </form>
+        )}
+        <ProjectsTable />
+      </div>
+    );
+  }
+
+  if (section === "task") {
+    const mine = isCapo ? ops.tasks.filter((t) => t.assigneeRole === "capocantiere") : ops.tasks;
+    return (
+      <div className="space-y-4">
+        {isPM && (
+          <form className="rounded-2xl border bg-white p-4 shadow-sm space-y-3" onSubmit={(e) => {
+            e.preventDefault();
+            if (!title.trim()) return;
+            createTask({
+              title: title.trim(),
+              project: "Residenza Navigli",
+              assignee: "Luca Ferrari",
+              assigneeRole: "capocantiere",
+              pri: "Media",
+              due: new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10),
+              createdBy: role.name,
+            });
+            setTitle("");
+          }}>
             <p className="text-sm font-semibold">Assegna task al Capocantiere</p>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Montaggio impalcature lato nord" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Montaggio impalcature" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Crea e assegna</button>
           </form>
         )}
@@ -105,7 +199,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
             setTitle(""); setExtra("");
           }}>
             <p className="text-sm font-semibold">Nuova segnalazione sicurezza</p>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Cavo elettrico a terra" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Cavo a terra" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <select value={extra || "Media"} onChange={(e) => setExtra(e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm"><option>Alta</option><option>Media</option><option>Bassa</option></select>
             <button type="submit" className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white">Segnala problema</button>
           </form>
@@ -142,7 +236,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
           }}>
             <p className="text-sm font-semibold">Richiedi materiale</p>
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Cemento 32.5" className="w-full rounded-xl border px-3 py-2 text-sm" />
-            <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Quantita es. 20 sacchi" className="w-full rounded-xl border px-3 py-2 text-sm" />
+            <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Quantita" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <button type="submit" className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Richiedi materiale</button>
           </form>
         )}
@@ -176,7 +270,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
             createExpense({ label: title.trim(), amount: Number(amount) || 0, project: "Residenza Navigli", createdBy: role.name });
             setTitle("");
           }}>
-            <p className="text-sm font-semibold">Proponi spesa (va in Approvazioni)</p>
+            <p className="text-sm font-semibold">Proponi spesa</p>
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Nolo piattaforma" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" className="w-full rounded-xl border px-3 py-2 text-sm" />
             <button type="submit" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Invia in approvazione</button>
@@ -233,7 +327,7 @@ export default function OpsModules({ section, role }: { section: Section; role: 
 
   return (
     <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
-      Sezione {section}: usa Task, Sicurezza, Magazzino, Spese e Approvazioni per i flussi live tra ruoli.
+      Sezione {section}: dati in aggiornamento.
     </div>
   );
 }
