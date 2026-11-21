@@ -27,12 +27,35 @@ export type AdminRole = {
   blurb: string;
   color: string;
   initials: string;
-  /** Sezioni visibili in sidebar (oltre a dashboard sempre presente se inclusa) */
   access: AdminNavId[];
   enabled: boolean;
 };
 
 export const ADMIN_ROLES: AdminRole[] = [
+  {
+    id: "direzione",
+    name: "Andrea Prestige",
+    title: "Direzione",
+    blurb: "Accesso completo a tutte le sezioni (come prima)",
+    color: "bg-slate-800",
+    initials: "AP",
+    access: [
+      "dashboard",
+      "progetti",
+      "richieste",
+      "task",
+      "documenti",
+      "fiscale",
+      "qualita",
+      "sicurezza",
+      "magazzino",
+      "attrezzature",
+      "spese",
+      "approvazioni",
+      "report",
+    ],
+    enabled: true,
+  },
   {
     id: "project_manager",
     name: "Marco Bianchi",
@@ -92,30 +115,6 @@ export const ADMIN_ROLES: AdminRole[] = [
     color: "bg-rose-600",
     initials: "SV",
     access: ["dashboard", "qualita", "sicurezza", "progetti", "report"],
-    enabled: false,
-  },
-  {
-    id: "direzione",
-    name: "Andrea Prestige",
-    title: "Direzione",
-    blurb: "Accesso completo a tutte le sezioni",
-    color: "bg-slate-800",
-    initials: "AP",
-    access: [
-      "dashboard",
-      "progetti",
-      "richieste",
-      "task",
-      "documenti",
-      "fiscale",
-      "qualita",
-      "sicurezza",
-      "magazzino",
-      "attrezzature",
-      "spese",
-      "approvazioni",
-      "report",
-    ],
     enabled: false,
   },
 ];
